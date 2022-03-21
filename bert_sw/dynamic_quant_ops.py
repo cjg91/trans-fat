@@ -80,47 +80,45 @@ def tensor_quant_linear(layer, act):
     return ret.float()
 
 
+def tensor_quant_gelu(act):
+    '''
+    Copied this from I-BERT implementation. Yields >20% accuracy drop.
+    '''
+#     k = 1.4142
+#     const = 14
+#     coeff = [-0.2888, -1.769, 1]
+#     coeff[2] /= coeff[0]
+    
+#     def int_erf(x_int, scaling_factor):
+#         b_int = torch.floor(torch.Tensor([coeff[1] / scaling_factor]))
+#         c_int = torch.floor(torch.Tensor([coeff[2] / scaling_factor**2]))
+#         sign = torch.sign(x_int)
+
+#         abs_int = torch.min(torch.abs(x_int), -b_int)
+#         y_int = sign * ((abs_int + b_int) ** 2 + c_int)
+#         scaling_factor = scaling_factor**2 * coeff[0]
+
+#         # avoid overflow
+#         y_int = torch.floor(y_int / 2**const)
+#         scaling_factor = scaling_factor * 2**const
+
+#         return y_int, scaling_factor
+    
+#     x_int, scaling_factor = tensor_quant_scale(act)
+#     sigmoid_int, sigmoid_scaling_factor = int_erf(x_int, scaling_factor / k)
+    
+#     shift_int = 1.0 // sigmoid_scaling_factor
+
+#     x_int = x_int * (sigmoid_int + shift_int)
+#     scaling_factor = scaling_factor * sigmoid_scaling_factor / 2
+
+#     return x_int * scaling_factor
+
+    return torch.nn.functional.gelu(act)
+
+    
 
 ## TODO: Implement quantized operations
-def tensor_quant_gelu(act):
-    k = 1.4142
-    const = 14
-    coeff = [-0.2888, -1.769, 1]
-    coeff[2] /= coeff[0]
-    
-    def int_erf(x_int, scaling_factor):
-        b_int = torch.floor(torch.Tensor([coeff[1] / scaling_factor]))
-        c_int = torch.floor(torch.Tensor([coeff[2] / scaling_factor**2]))
-        sign = torch.sign(x_int)
-
-        abs_int = torch.min(torch.abs(x_int), -b_int)
-        y_int = sign * ((abs_int + b_int) ** 2 + c_int)
-        scaling_factor = scaling_factor**2 * coeff[0]
-
-        # avoid overflow
-        y_int = torch.floor(y_int / 2**const)
-        scaling_factor = scaling_factor * 2**const
-
-        return y_int, scaling_factor
-    '''
-    TODO: quantize input, implement integer GeLU
-    act: FLoat Tensor
-    '''
-#     return torch.nn.functional.gelu(act)
-    
-    x_int, scaling_factor = tensor_quant_scale(act)
-    sigmoid_int, sigmoid_scaling_factor = int_erf(x_int, scaling_factor / k)
-    
-    shift_int = 1.0 // sigmoid_scaling_factor
-
-    x_int = x_int * (sigmoid_int + shift_int)
-    scaling_factor = scaling_factor * sigmoid_scaling_factor / 2
-
-    return x_int * scaling_factor
-
-    
-
-
 
 def tensor_quant_softmax(act):
     '''
