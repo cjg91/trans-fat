@@ -124,7 +124,53 @@ def tensor_quant_softmax(act):
     '''
     TODO: quantize input and implement integer softmax
     '''
-    return torch.nn.functional.softmax(act, dim=-1)
+#     return torch.nn.functional.softmax(act, dim=-1)
+    output_bit = 8
+    max_bit = 32
+    x0 = -0.6931  # -ln2
+    const = 30  # dummy integer constant
+    coef = [0.35815147, 0.96963238, 1.0]  # ax**2 + bx + c
+    coef[1] /= coef[0]
+    coef[2] /= coef[0]
+
+    def int_polynomial(x_int, scaling_factor):
+        with torch.no_grad():
+            b_int = torch.floor(torch.Tensor([coef[1] / scaling_factor]))
+            c_int = torch.floor(torch.Tensor([coef[2] / scaling_factor**2]))
+        z = (x_int + b_int) * x_int + c_int
+        scaling_factor = coef[0] * scaling_factor**2
+        return z, scaling_factor
+    
+    def int_exp(x_int, scaling_factor):
+        with torch.no_grad():
+            x0_int = torch.floor(torch.Tensor([x0 / scaling_factor]))
+        x_int = torch.max(x_int, const * x0_int)
+
+        q = torch.floor(x_int / x0_int)
+        r = x_int - x0_int * q
+        exp_int, exp_scaling_factor = int_polynomial(r, scaling_factor)
+        exp_int = torch.clamp(torch.floor(exp_int * 2 ** (const - q)), min=0)
+        scaling_factor = exp_scaling_factor / 2**const
+        return exp_int, scaling_factor
+
+    
+    x_int, scaling_factor = tensor_quant_scale(act, bits=32)
+
+    x_int_max, _ = x_int.max(dim=-1, keepdim=True)
+    x_int = x_int - x_int_max
+    exp_int, exp_scaling_factor = int_exp(x_int, scaling_factor)
+
+    # Avoid overflow
+#     exp, exp_scaling_factor = self.act(exp_int, exp_scaling_factor)
+#     exp_int = exp / exp_scaling_factor
+    exp = exp_int * exp_scaling_factor
+    exp_int, exp_scaling_factor = tensor_quant_scale(exp, bits=16)
+
+    exp_int_sum = exp_int.sum(dim=-1, keepdim=True)
+    factor = torch.floor(2**max_bit / exp_int_sum)
+    exp_int = torch.floor(exp_int * factor / 2 ** (max_bit - output_bit))
+    scaling_factor = 1 / 2**output_bit
+    return exp_int * scaling_factor
 
 
 def tensor_quant_layernorm(layernorm, act):
