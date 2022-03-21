@@ -40,14 +40,20 @@ def tensor_quant_matmul(t1, t2):
     t1_q, t1_scale = tensor_quant_scale(t1)
     t2_q, t2_scale = tensor_quant_scale(t2)
     
+    # INT8 territory
+    
     # note: performing matmul on float tensors that contain integers in the INT8 range.
     # float matmul is optimized for CPU, int matmul is not.
     t3_q = torch.matmul(t1_q, t2_q)
+    
+    # INT32 territory
     # Make sure we stayed in INT32 range
     assert t3_q.max().item() < 2**31-1
     assert t3_q.min().item() > -2**31
 
     t3 = t3_q * t1_scale * t2_scale
+    
+    # Float territory
     
     return t3.float()
 
@@ -65,7 +71,10 @@ def tensor_quant_linear(layer, act):
     acc_scale = act_scale * weight_scale
     bias_q, _ = tensor_quant_scale(layer.bias, scale=acc_scale, bits=32)
     
-    ret_q = tensor_quant_matmul(act_q, weight_q) + bias_q
+    ret_q = t3_q = torch.matmul(act_q, weight_q) + bias_q
+    
+    assert ret_q.max().item() < 2**31-1
+    assert ret_q.min().item() > -2**31
     
     ret = ret_q * acc_scale
     return ret.float()
@@ -74,11 +83,43 @@ def tensor_quant_linear(layer, act):
 
 ## TODO: Implement quantized operations
 def tensor_quant_gelu(act):
+    k = 1.4142
+    const = 14
+    coeff = [-0.2888, -1.769, 1]
+    coeff[2] /= coeff[0]
+    
+    def int_erf(x_int, scaling_factor):
+        b_int = torch.floor(torch.Tensor([coeff[1] / scaling_factor]))
+        c_int = torch.floor(torch.Tensor([coeff[2] / scaling_factor**2]))
+        sign = torch.sign(x_int)
+
+        abs_int = torch.min(torch.abs(x_int), -b_int)
+        y_int = sign * ((abs_int + b_int) ** 2 + c_int)
+        scaling_factor = scaling_factor**2 * coeff[0]
+
+        # avoid overflow
+        y_int = torch.floor(y_int / 2**const)
+        scaling_factor = scaling_factor * 2**const
+
+        return y_int, scaling_factor
     '''
     TODO: quantize input, implement integer GeLU
     act: FLoat Tensor
     '''
-    return torch.nn.functional.gelu(act)
+#     return torch.nn.functional.gelu(act)
+    
+    x_int, scaling_factor = tensor_quant_scale(act)
+    sigmoid_int, sigmoid_scaling_factor = int_erf(x_int, scaling_factor / k)
+    
+    shift_int = 1.0 // sigmoid_scaling_factor
+
+    x_int = x_int * (sigmoid_int + shift_int)
+    scaling_factor = scaling_factor * sigmoid_scaling_factor / 2
+
+    return x_int * scaling_factor
+
+    
+
 
 
 def tensor_quant_softmax(act):
