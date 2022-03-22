@@ -71,7 +71,7 @@ def tensor_quant_linear(layer, act):
     acc_scale = act_scale * weight_scale
     bias_q, _ = tensor_quant_scale(layer.bias, scale=acc_scale, bits=32)
     
-    ret_q = t3_q = torch.matmul(act_q, weight_q) + bias_q
+    ret_q = torch.matmul(act_q, weight_q) + bias_q
     
     assert ret_q.max().item() < 2**31-1, ret_q.max().item()
     assert ret_q.min().item() > -2**31
@@ -179,25 +179,32 @@ def tensor_quant_layernorm(layernorm, act):
     layernorm: nn.LayerNorm module
     act:       Float Tensor
     '''
-    # assert False
-    '''Note: I was doing this wrong even without quantization, so fix that first and then quantize the operations.'''
-    return torch.nn.functional.layer_norm(act, layernorm.normalized_shape, layernorm.weight, layernorm.bias, layernorm.eps)
 
-#     mean = torch.mean(act, axis=2, keepdim=True))
-#     y = act - mean
-#     y_sq = y**2
-#     var = torch.sum(y_sq, axis=2, keepdim=True)
+    '''Note: I was doing this wrong even without quantization, so fix that first and then quantize the operations.'''
+    # return torch.nn.functional.layer_norm(act, layernorm.normalized_shape, layernorm.weight, layernorm.bias, layernorm.eps)
+
+    act_int, scaling_factor = tensor_quant_scale(act, bits=16)
+    weight_int, _ = tensor_quant_scale(layernorm.weight.data, scale=scaling_factor, bits=16)
+    bias_int, _ = tensor_quant_scale(layernorm.bias.data, scale=scaling_factor, bits=16)
     
-# #     assert var_int.max() < 2**31 + .01
+    n = torch.tensor(act.shape[2], dtype=torch.float)
     
-#     n = torch.tensor(act.shape[2], dtype=torch.float)
-#     dim_sqrt = torch.sqrt(n).to(act.device)
+    mean_int = torch.round(torch.mean(act_int, axis=2, keepdim=True))
+    y_int = act_int - mean_int
+    y_sq_int = torch.round(y_int**2 / n)
+    var_int = torch.sum(y_sq_int, axis=2, keepdim=True) 
     
-#     std = torch.sqrt(var)
-#     y = y * dim_sqrt / std
+    assert var_int.max() < 2**31 + .01
+    std_int = torch.round(torch.sqrt(var_int + int(layernorm.eps / scaling_factor)))
+
+    ###############
+    # Unquantized Operation
+    y_int = y_int / std_int
+    ###############
     
-#     y = y * layernorm.weight.data + layernorm.bias.data
-#     return y
+    y_int = y_int * weight_int + bias_int
+    y = y_int * scaling_factor
+    return y
     
     
     

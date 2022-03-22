@@ -3,8 +3,87 @@ import torch.nn as nn
 import math
 from .quant_ops import (
     tensor_quant_matmul, tensor_quant_linear, tensor_quant_softmax,
-    tensor_quant_layernorm, tensor_quant_gelu
+    tensor_quant_layernorm, tensor_quant_gelu, tensor_quant_scale
 )
+from .quant_kernels import linear_kernel
+
+def quantize_linear_params(layer, act_scale):
+    weight, weight_scale = tensor_quant_scale(layer.weight)
+    acc_scale = weight_scale * act_scale
+    bias, _ = tensor_quant_scale(layer.bias, scale=acc_scale)
+
+    return weight, bias, acc_scale
+
+def layer_kernel(layer, hidden_states, attention_mask=None):
+    '''
+    Entire encoder layer implemented in basic operations.
+    '''
+    bs, seqlen, dmodel = hidden_states.size()
+    num_heads = layer.attention.self.num_attention_heads
+    dhead = layer.attention.self.attention_head_size
+    
+    ###############
+    # Stage 1
+    ## Quantize
+    _, act_scale = tensor_quant_scale(hidden_states)
+    query_weight, query_bias, query_acc_scale = quantize_linear_params(layer.attention.self.query, act_scale)
+    key_weight, key_bias, key_acc_scale = quantize_linear_params(layer.attention.self.key, act_scale)
+    value_weight, value_bias, value_acc_scale = quantize_linear_params(layer.attention.self.value, act_scale)
+
+    query_layer = linear_kernel(hidden_states, query_weight.T, query_bias) # <bs, seqlen, dmodel>
+    key_layer = linear_kernel(hidden_states, key_weight.T, key_bias) # <bs, seqlen, dmodel>
+    value_layer = linear_kernel(hidden_states, value_weight.T, value_bias) # <bs, seqlen, dmodel>
+
+    ## Dequantize
+    query_layer = query_layer.float() * query_acc_scale
+    key_layer = key_layer.float() * key_acc_scale
+    value_layer = value_layer.float() * value_acc_scale
+
+    ###############
+    # Stage 2
+    
+    new_shape = (bs, seqlen, num_heads, dhead)
+    
+    query_layer = query_layer.view(new_shape)
+    value_layer = value_layer.view(new_shape)
+    key_layer = key_layer.view(new_shape)
+    
+    query_layer = query_layer.permute(0,2,1,3) # <bs, num_head, seqlen, dhead>
+    value_layer = value_layer.permute(0,2,1,3) # <bs, num_head, seqlen, dhead>
+    key_layer = key_layer.permute(0,2,3,1)     # <bs, num_head, dhead, seqlen>
+    
+    attention_scores = tensor_quant_matmul(query_layer, key_layer)
+    attention_scores /= math.sqrt(dhead)
+    
+    if attention_mask is not None:
+        attention_scores = attention_scores + attention_mask
+    
+    attention_probs = tensor_quant_softmax(attention_scores)
+    # attention_probs = layer.attention.self.dropout(attention_probs)
+    
+    # Weighted sum of Values from softmax attention
+    attention_out = tensor_quant_matmul(attention_probs, value_layer)
+    
+    attention_out = attention_out.permute(0,2,1,3).contiguous()
+    attention_out = attention_out.view(bs, seqlen, dmodel)
+    
+    dense_out = tensor_quant_linear(layer.attention.output.dense, attention_out)
+    
+    attention_out = tensor_quant_layernorm(layer.attention.output.LayerNorm, dense_out + hidden_states)
+
+    ###############
+    # Stage 3
+    output = tensor_quant_linear(layer.intermediate.dense, attention_out)
+    output = tensor_quant_gelu(output)
+    
+    ###############
+    # Stage 4
+    output = tensor_quant_linear(layer.output.dense, output)
+    # output = layer.output.dropout(output)
+    output = tensor_quant_layernorm(layer.output.LayerNorm, output + attention_out)
+    
+    return output
+
 
 def attention(layer, hidden_states, attention_mask=None):
     '''
@@ -20,9 +99,9 @@ def attention(layer, hidden_states, attention_mask=None):
     # Linear transform to get multiple heads. This is a major MAC slurper.
     # Each of these is calling an nn.Linear layer on hidden_states.
 #     query_layer = layer.attention.self.query(hidden_states) # 
-    query_layer = tensor_quant_linear(layer.attention.self.query, hidden_states) # <bs, seqlen, dmodel>
-    key_layer = tensor_quant_linear(layer.attention.self.key, hidden_states)     # <bs, seqlen, dmodel>
-    value_layer = tensor_quant_linear(layer.attention.self.value, hidden_states) # <bs, seqlen, dmodel>
+    query_layer = tensor_quant_linear(layer.attention.self.query, hidden_states, out_bits=8) # <bs, seqlen, dmodel>
+    key_layer = tensor_quant_linear(layer.attention.self.key, hidden_states, out_bits=8)     # <bs, seqlen, dmodel>
+    value_layer = tensor_quant_linear(layer.attention.self.value, hidden_states, out_bits=8) # <bs, seqlen, dmodel>
     
     # Reshape and transpose for multi-head
     new_shape = (bs, seqlen, num_heads, dhead)
@@ -85,7 +164,8 @@ def encoder(model, hidden_states, attention_mask):
     '''
     for layer_module in model.encoder.layer:
         # MHA + LayerNorm
-        attention_out = attention(layer_module, hidden_states, attention_mask)
-        hidden_states = ffn(layer_module, attention_out)
+        # attention_out = attention(layer_module, hidden_states, attention_mask)
+        # hidden_states = ffn(layer_module, attention_out)
+        hidden_states = layer_kernel(layer_module, hidden_states, attention_mask)
 
     return hidden_states
