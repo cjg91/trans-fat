@@ -179,8 +179,8 @@ def tensor_quant_layernorm(layernorm, act):
     layernorm: nn.LayerNorm module
     act:       Float Tensor
     '''
-    assert False
-    '''NOTE: I was implementing this wrong, even when doing it unquantized. Make my own unquantized version first before quantizing. '''
+    # assert False
+    '''Note: I was doing this wrong even without quantization, so fix that first and then quantize the operations.'''
     return torch.nn.functional.layer_norm(act, layernorm.normalized_shape, layernorm.weight, layernorm.bias, layernorm.eps)
 
 #     mean = torch.mean(act, axis=2, keepdim=True))
