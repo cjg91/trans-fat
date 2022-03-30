@@ -23,22 +23,28 @@ def stage1(act_int, query_weight_t, query_bias, key_weight_t, key_bias, value_we
     M_query, M_key, M_value:                        requantization values
     '''
 
-    query_layer = linear_kernel(act_int, query_weight_t, query_bias) # <bs, seqlen, dmodel>
-    key_layer = linear_kernel(act_int, key_weight_t, key_bias) # <bs, seqlen, dmodel>
-    value_layer = linear_kernel(act_int, value_weight_t, value_bias) # <bs, seqlen, dmodel>
+    query = linear_kernel(act_int, query_weight_t, query_bias) # <bs, seqlen, dmodel>
+    key = linear_kernel(act_int, key_weight_t, key_bias) # <bs, seqlen, dmodel>
+    value = linear_kernel(act_int, value_weight_t, value_bias) # <bs, seqlen, dmodel>
 
-    query_layer = requantize_kernel(query_layer, M_query)
-    key_layer = requantize_kernel(key_layer, M_key)
-    value_layer = requantize_kernel(value_layer, M_value)
+    query = requantize_kernel(query, M_query)
+    key = requantize_kernel(key, M_key)
+    value = requantize_kernel(value, M_value)
 
-    return query_layer, key_layer, value_layer
+    return query, key, value
 
 
 def stage2(query, value, key, scores_scale, M_attention_probs, M_attention_out, dense_weight_t, dense_bias, dense_acc_scale, layernorm, skip_conn, M_stage2):
     '''
-    query:  <bs, seqlen, dmodel> int8 quantized query
-    value:  <bs, seqlen, dmodel> int8 quantized value
-    key:    <bs, seqlen, dmodel> int8 quantized key
+    query:              <bs, seqlen, dmodel> int8 quantized query
+    value:              <bs, seqlen, dmodel> int8 quantized value
+    key:                <bs, seqlen, dmodel> int8 quantized key
+    M_*:                rescaling factor
+    dense_weight_t:     <dmodel, dmodel> int8 quantized weight
+    dense_bias:         int8 quantized bias
+    dense_acc_scale:    rescaling factor
+    layernorm:          object containing layernorm's bias and weight (see tensor_quant_layernorm implementation)
+    skip_conn:          <bs, seqlen, dmodel> int8 value from skip connection
     '''
 
     bs = 1
@@ -76,7 +82,7 @@ def stage2(query, value, key, scores_scale, M_attention_probs, M_attention_out, 
     dense_out = linear_kernel(attention_out, dense_weight_t, dense_bias)
 
     # dequantize
-    dense_out = dense_out.float() * dense_acc_scale
+    # dense_out = dense_out.float() * dense_acc_scale
     
     dense_out = dense_out + skip_conn
 
@@ -113,7 +119,7 @@ def stage4(fc_in, dense_weight_t, dense_bias, dense_acc_scale, skip_conn, layern
     
     return fc_out
 
-def layer_kernel_gt(layer, hidden_states):
+def layer_kernel_gt(layer, hidden_states, attention_mask=None):
     '''
     Demonstrates pipeline stages in the encoder layer. Prepares inputs and scaling factors
     and uses stages to perform computation.
@@ -181,6 +187,7 @@ def layer_kernel_gt(layer, hidden_states):
     
     # DEQUANT ZONE BEGIN ⬇️`
     attention_scores = attention_scores.float() * (query_out_scale * key_out_scale)
+
     attention_scores /= math.sqrt(dhead)
     
     attention_probs = tensor_quant_softmax(attention_scores)
