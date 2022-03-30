@@ -2,7 +2,7 @@ import torch
 
 '''
 These kernels differ from ops because they have well-defined interfaces and operate mainly on integer types.
-These will be mapped, almost exactly, to HLS kernels.
+These will be mapped, almost exactly as they are, to HLS kernels.
 '''
 
 def linear_kernel(act: torch.CharTensor, weight_t: torch.CharTensor, bias: torch.IntTensor) -> torch.IntTensor:
