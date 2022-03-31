@@ -34,7 +34,7 @@ def stage1(act_int, query_weight_t, query_bias, key_weight_t, key_bias, value_we
     return query, key, value
 
 
-def stage2(query, value, key, scores_scale, M_attention_probs, M_attention_out, dense_weight_t, dense_bias, dense_acc_scale, layernorm, skip_conn, M_stage2):
+def stage2(query, key, value, scores_scale, M_attention_probs, M_attention_out, dense_weight_t, dense_bias, dense_acc_scale, layernorm, skip_conn, M_stage2):
     '''
     query:              <bs, seqlen, dmodel> int8 quantized query
     value:              <bs, seqlen, dmodel> int8 quantized value
@@ -61,11 +61,14 @@ def stage2(query, value, key, scores_scale, M_attention_probs, M_attention_out, 
     query = query.permute(0,2,1,3) # <bs, num_head, seqlen, dhead>
     value = value.permute(0,2,1,3) # <bs, num_head, seqlen, dhead>
     key = key.permute(0,2,3,1)     # <bs, num_head, dhead, seqlen>
+
+    # print('key_layer_quant', key)
     
     attention_scores_int = matmul_kernel(query, key)
 
     # dequantize
     attention_scores = attention_scores_int.float() * scores_scale
+
     attention_scores /= math.sqrt(dhead)
 
     attention_probs = tensor_quant_softmax(attention_scores)
@@ -73,8 +76,12 @@ def stage2(query, value, key, scores_scale, M_attention_probs, M_attention_out, 
     # requantize
     attention_probs_int = requantize_kernel(attention_probs, M_attention_probs)
 
+    print('attention_probs_int', attention_probs_int)
+
     attention_out = matmul_kernel(attention_probs_int, value)
     attention_out = requantize_kernel(attention_out, M_attention_out)
+
+    print('attention_out', attention_out)
 
     attention_out = attention_out.permute(0,2,1,3).contiguous()
     attention_out = attention_out.view(bs, seqlen, dmodel)
@@ -82,9 +89,10 @@ def stage2(query, value, key, scores_scale, M_attention_probs, M_attention_out, 
     dense_out = linear_kernel(attention_out, dense_weight_t, dense_bias)
 
     # dequantize
-    # dense_out = dense_out.float() * dense_acc_scale
+    dense_out = dense_out.float() * dense_acc_scale
     
     dense_out = dense_out + skip_conn
+    print('dense_out', dense_out)
 
     attention_out = tensor_quant_layernorm(layernorm, dense_out)
     
@@ -119,7 +127,18 @@ def stage4(fc_in, dense_weight_t, dense_bias, dense_acc_scale, skip_conn, layern
     
     return fc_out
 
-def layer_kernel_gt(layer, hidden_states, attention_mask=None):
+
+def pipeline(stage1_args, stage2_args, stage3_args, stage4_args):
+    stage1_out = stage1(**stage1_args)
+    stage2_out = stage2(*stage1_out, **stage2_args)
+    stage3_out = stage3(stage2_out, **stage3_args)
+    stage4_out = stage4(stage3_out, **stage4_args)
+
+    output = stage4_out.float() * output_scale
+
+
+
+def layer_kernel_gt(layer, hidden_states):
     '''
     Demonstrates pipeline stages in the encoder layer. Prepares inputs and scaling factors
     and uses stages to perform computation.
@@ -267,37 +286,20 @@ def layer_kernel_gt(layer, hidden_states, attention_mask=None):
     _, output_scale = tensor_quant_scale(output, bits=8)
     stage4_args['M_stage4'] = (1/output_scale)
 
+    return stage1_args, stage2_args, stage3_args, stage4_args
 
 
-    ### BY THE PIPELINE
-    stage1_out = stage1(**stage1_args)
-    stage2_out = stage2(*stage1_out, **stage2_args)
-    stage3_out = stage3(stage2_out, **stage3_args)
-    stage4_out = stage4(stage3_out, **stage4_args)
-
-    output = stage4_out.float() * output_scale
-    return output
-
-
-def attention(layer, hidden_states, attention_mask=None):
-    '''
-    Pass in a encoder layer (which holds pretrained weights) and hidden_states input,
-    and this function performs the same operations as the layer but in a readable fashion.
-    
-    hidden_states: <bs, seqlen, dmodel>
-    '''
-    bs, seqlen, dmodel = hidden_states.size()
-    num_heads = layer.attention.self.num_attention_heads
-    dhead = layer.attention.self.attention_head_size
-    
-    # Linear transform to get multiple heads. This is a major MAC slurper.
-    # Each of these is calling an nn.Linear layer on hidden_states.
-#     query_layer = layer.attention.self.query(hidden_states) # 
+def stage1_dynamic(layer, hidden_states):
     query_layer = tensor_quant_linear(layer.attention.self.query, hidden_states) # <bs, seqlen, dmodel>
     key_layer = tensor_quant_linear(layer.attention.self.key, hidden_states)     # <bs, seqlen, dmodel>
     value_layer = tensor_quant_linear(layer.attention.self.value, hidden_states) # <bs, seqlen, dmodel>
+    return query_layer, key_layer, value_layer
 
-    # Reshape and transpose for multi-head
+
+def stage2_dynamic(layer, hidden_states, query_layer, key_layer, value_layer):
+    bs, seqlen, dmodel = hidden_states.size()
+    num_heads = layer.attention.self.num_attention_heads
+    dhead = layer.attention.self.attention_head_size
     new_shape = (bs, seqlen, num_heads, dhead)
     
     query_layer = query_layer.view(new_shape)
@@ -308,31 +310,51 @@ def attention(layer, hidden_states, attention_mask=None):
     value_layer = value_layer.permute(0,2,1,3) # <bs, num_head, seqlen, dhead>
     # Key is transposed to match dimensions of Query for matmul
     key_layer = key_layer.permute(0,2,3,1)     # <bs, num_head, dhead, seqlen>
-    
+
+    query_layer_quant, query_layer_scale = tensor_quant_scale(query_layer)
+    key_layer_quant, key_layer_scale = tensor_quant_scale(key_layer)
+
     # The attention main course
     attention_scores = tensor_quant_matmul(query_layer, key_layer)
     attention_scores /= math.sqrt(dhead)
     
-    if attention_mask is not None:
-        # Apply the attention mask is (precomputed for all layers in RobertaModel forward() function)
-        attention_scores = attention_scores + attention_mask
-    
     attention_probs = tensor_quant_softmax(attention_scores)
-    # attention_probs = layer.attention.self.dropout(attention_probs)
     
+    attention_probs_int, attention_probs_scale = tensor_quant_scale(attention_probs)
+    print('attention_probs_scale', attention_probs_scale)
+    print('attention_probs_int', attention_probs_int)
     # Weighted sum of Values from softmax attention
     attention_out = tensor_quant_matmul(attention_probs, value_layer)
+
+    attention_out_quant, _ = tensor_quant_scale(attention_out)
+    print('attention_out', attention_out_quant)
+
     
     attention_out = attention_out.permute(0,2,1,3).contiguous()
     attention_out = attention_out.view(bs, seqlen, dmodel)
     
     # It's time for one more linear transform and layer norm
     dense_out = tensor_quant_linear(layer.attention.output.dense, attention_out)
-    # dense_out = layer.attention.output.dropout(dense_out)
     
     # LayerNorm also mplements the residual connection
+    dense_out = dense_out + hidden_states
+    print('dense_out', dense_out)
+
     layer_out = tensor_quant_layernorm(layer.attention.output.LayerNorm, dense_out + hidden_states)
+    return layer_out
+
+def attention(layer, hidden_states, attention_mask=None):
+    '''
+    Pass in a encoder layer (which holds pretrained weights) and hidden_states input,
+    and this function performs the same operations as the layer but in a readable fashion.
     
+    hidden_states: <bs, seqlen, dmodel>
+    '''
+
+    query_layer, key_layer, value_layer = stage1_dynamic(layer, hidden_states)
+
+    layer_out = stage2_dynamic(layer, hidden_states, query_layer, key_layer, value_layer)
+   
     return layer_out
 
 
