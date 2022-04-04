@@ -1,5 +1,6 @@
 #include <cstdint>
 #include "pipeline.hpp"
+#include "stage1.hpp"
 
 /*
     A: NxK
