@@ -1,5 +1,5 @@
 src_files = stage1_test.cpp stage1.cpp
-header_files = stage1.hpp pipeline.hpp
+header_files = stage1.hpp ../pipeline.hpp
 
 .PHONY: all
 
