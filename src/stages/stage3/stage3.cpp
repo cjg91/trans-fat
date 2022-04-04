@@ -1,7 +1,6 @@
 #include <cstdint>
 #include <algorithm>
-#include "pipeline.hpp"
-#include "stage3.hpp"
+#include "../pipeline.hpp"
 
 /*
     A: NxK
@@ -24,7 +23,17 @@ void linear_sw(int8_t* A, int8_t* B, int32_t* bias, int32_t* out, const int N, c
 
 void gelu_sw(int32_t* gelu_in, int32_t* gelu_out, int rows, int cols, float scaling_factor) {
 
-    // TODO: Implement scaling_factor / k for int_erf scaling factor!
+    /*
+    C++ impl of tensor_quant_gelu. 
+    Key differences:
+    1. This function takes in int32 and a scaling factor, whereas tensor_quant_gelu takes in float and determines the int32 and scaling_factor.
+    2. tensor_quant_gelu returns int32. This op can be fused with requantization to return int8. 
+    
+    */
+
+
+    // TODO: Implement scaling_factor / k for int_erf scaling factor! I tried to inline int_erf() and made the mistake to not divide scaling_factor by k.
+
     float k = 1.4142;
     int constant = 14;
     float coef_0 = -0.2888;
@@ -50,6 +59,7 @@ void gelu_sw(int32_t* gelu_in, int32_t* gelu_out, int rows, int cols, float scal
 
         val = val * (y_int + shift_int)
 
+        // Incomplete. Refer to tensor_quant_gelu for the python implementation. This function be confusing so you might want to just start from scratch. 
 
         }
     }
@@ -66,12 +76,20 @@ void requantize(int32_t* in, int8_t* out, const int rows, const int cols, float 
 
 
 void stage3_gt(int8_t* fc_in, int8_t* dense_weight_t, int32_t* dense_bias, int8_t* dense_out, float dense_acc_scale, float M_stage3) {
+    /*
+    High level: inputs are int8_t, output is int8_t. The linear layer goes from int8 -> int32. then, apply GeLU (which takes scaling_factor 
+    that is related to the int32_t quantization) which goes from int32 -> int32, then requantize to int8. This can all be fused.
 
-    auto dense_temp = new int32_t[SEQLEN*FFDIM];
-    auto gelu_temp = new int32_t[SEQLEN*FFDIM];
+    dense_acc_scale:    the scaling factor used within I-GeLU
+    M_stage 3:          the requantization factor used to quantize the output of GeLU from 32 to 8 bits.
+    */
 
-    linear_sw(fc_in, dense_weight_t, dense_bias, dense_temp, SEQLEN, FFDIM, DMODEL);
+    // Refactor to fuse layers and not dynamically allocate these
+    auto dense_temp = new int32_t[CFG::seqlen*CFG::ffdim];
+    auto gelu_temp = new int32_t[CFG::seqlen*CFG::ffdim];
 
-    gelu_sw(dense_temp, gelu_temp, SEQLEN, FFDIM, dense_acc_scale);
 
+    linear_sw(fc_in, dense_weight_t, dense_bias, dense_temp, CFG::seqlen, CFG::ffdim, CFG::dmodel);
+    gelu_sw(dense_temp, gelu_temp, CFG::seqlen, CFG::ffdim, dense_acc_scale);
+    // TODO: requantize
 }
