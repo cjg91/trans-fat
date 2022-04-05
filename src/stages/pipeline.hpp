@@ -7,4 +7,3 @@ namespace CFG
     const int ffdim = 3072;
 } // namespace CONFIG
 
-
