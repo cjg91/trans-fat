@@ -31,9 +31,6 @@ void gelu_sw(int32_t* gelu_in, int32_t* gelu_out, int rows, int cols, float scal
     
     */
 
-
-    // TODO: Implement scaling_factor / k for int_erf scaling factor! I tried to inline int_erf() and made the mistake to not divide scaling_factor by k.
-
     float k = 1.4142;
     int constant = 14;
     float coef_0 = -0.2888;
@@ -41,11 +38,15 @@ void gelu_sw(int32_t* gelu_in, int32_t* gelu_out, int rows, int cols, float scal
     float coef_2 = 1/coef_0;
 
     // int_erf
-    int b_int = int(coef_1 / scaling_factor);
-    int c_int = int(coef_2 / (scaling_factor*scaling_factor));
+    float int_erf_scaling = scaling_factor / k;
+    int b_int = int(coef_1 / int_erf_scaling);
+    int c_int = int(coef_2 / (int_erf_scaling*int_erf_scaling));
+    float sigmoid_scaling_factor = int_erf_scaling * int_erf_scaling * coef_0;
+    sigmoid_scaling_factor = sigmoid_scaling_factor * (1<<constant);
 
-    float sigmoid_scaling_factor = (scaling_factor * scaling_factor * coef_0)*(1 << constant);
-    int32_t shift_int = int(1 / sigmoid_scaling_factor);
+    float out_scaling_factor = scaling_factor * sigmoid_scaling_factor / 2;
+
+    int32_t shift_int = int32_t(1 / sigmoid_scaling_factor);
     
     for (int i = 0; i < rows; i++) {
         for (int j = 0; j < cols; j++) {
@@ -55,12 +56,11 @@ void gelu_sw(int32_t* gelu_in, int32_t* gelu_out, int rows, int cols, float scal
         int32_t abs_int = std::min(val_abs, -1*b_int);
         int32_t intermediate = (abs_int + b_int);
         int32_t y_int = sign * (intermediate * intermediate + c_int);
-        y_int = y_int / (1 << constant);
+        int32_t sigmoid_int = y_int / (1 << constant);
 
-        val = val * (y_int + shift_int)
+        val = val * (sigmoid_int + shift_int);
 
-        // Incomplete. Refer to tensor_quant_gelu for the python implementation. This function be confusing so you might want to just start from scratch. 
-
+        gelu_out[i*cols+j] = val;
         }
     }
 }
@@ -91,5 +91,6 @@ void stage3_gt(int8_t* fc_in, int8_t* dense_weight_t, int32_t* dense_bias, int8_
 
     linear_sw(fc_in, dense_weight_t, dense_bias, dense_temp, CFG::seqlen, CFG::ffdim, CFG::dmodel);
     gelu_sw(dense_temp, gelu_temp, CFG::seqlen, CFG::ffdim, dense_acc_scale);
-    // TODO: requantize
+    requantize(gelu_temp, dense_out, CFG::seqlen, CFG::ffdim, M_stage3);
+
 }
