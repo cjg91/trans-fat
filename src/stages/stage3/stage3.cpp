@@ -39,8 +39,8 @@ void gelu_sw(int32_t* gelu_in, int32_t* gelu_out, int rows, int cols, float scal
 
     // int_erf
     float int_erf_scaling = scaling_factor / k;
-    int b_int = int(coef_1 / int_erf_scaling);
-    int c_int = int(coef_2 / (int_erf_scaling*int_erf_scaling));
+    int32_t b_int = int32_t(coef_1 / int_erf_scaling);
+    int32_t c_int = int32_t(coef_2 / (int_erf_scaling*int_erf_scaling));
     float sigmoid_scaling_factor = int_erf_scaling * int_erf_scaling * coef_0;
     sigmoid_scaling_factor = sigmoid_scaling_factor * (1<<constant);
 

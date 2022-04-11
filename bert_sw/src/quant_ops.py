@@ -82,7 +82,7 @@ def tensor_quant_linear(layer, act):
 
 def tensor_quant_gelu(act):
     '''
-    Copied this from I-BERT implementation. Yields >20% accuracy drop.
+    Copied this from I-BERT implementation.
     '''
     k = 1.4142
     const = 14
