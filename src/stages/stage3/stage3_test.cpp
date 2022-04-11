@@ -50,7 +50,7 @@ int main() {
     int8_t* dense_out = new int8_t[CFG::seqlen * CFG::ffdim];
 
     stage3_gt(fc_in, dense_weight_t, dense_bias, dense_out_gt, dense_acc_scale, M_stage3);
-    stage3_gt(fc_in, dense_weight_t, dense_bias, dense_out, dense_acc_scale, M_stage3);
+    stage3(fc_in, dense_weight_t, dense_bias, dense_out, dense_acc_scale, M_stage3);
 
     // printmat(dense_out, CFG::seqlen, CFG::ffdim);
     // std::cout << "\n\n\n\n";
