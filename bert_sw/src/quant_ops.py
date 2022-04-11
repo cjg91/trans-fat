@@ -187,22 +187,41 @@ def tensor_quant_layernorm(layernorm, act):
     weight_int, _ = tensor_quant_scale(layernorm.weight.data, scale=scaling_factor, bits=16)
     bias_int, _ = tensor_quant_scale(layernorm.bias.data, scale=scaling_factor, bits=16)
     
+    print('act shape: ', act_int.shape)
+    
     n = torch.tensor(act.shape[2], dtype=torch.float)
     
     mean_int = torch.round(torch.mean(act_int, axis=2, keepdim=True))
+    
+    print('mean shape: ', mean_int.shape)
+    
     y_int = act_int - mean_int
+    
+    print('y_int shape: ', y_int.shape)
+    
     y_sq_int = torch.round(y_int**2 / n)
+    
+    print('y_sq_int shape: ', y_sq_int.shape)
+    
     var_int = torch.sum(y_sq_int, axis=2, keepdim=True) 
+    
+    print('var_int shape: ', var_int.shape)
     
     assert var_int.max() < 2**31 + .01
     std_int = torch.round(torch.sqrt(var_int + int(layernorm.eps / scaling_factor)))
+
+    print('std shape: ',std_int.shape)
 
     ###############
     # Unquantized Operation
     y_int = y_int / std_int
     ###############
     
+    print('y shape: ', y_int.shape)
+    
     y_int = y_int * weight_int + bias_int
+    
+    print('y_int shape: ', y_int.shape)
     y = y_int * scaling_factor
     return y
     
