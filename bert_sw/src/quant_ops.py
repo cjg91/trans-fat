@@ -218,6 +218,8 @@ def tensor_quant_layernorm(layernorm, act):
     ###############
     
     print('y shape: ', y_int.shape)
+    print('weight shape: ', weight_int.shape)
+    print('bias shape: ', bias_int.shape)
     
     y_int = y_int * weight_int + bias_int
     
