@@ -1,5 +1,6 @@
 #include <cstdint>
 #include <algorithm>
+#include <stdio.h>
 #include "../pipeline.hpp"
 
 /*
@@ -44,6 +45,7 @@ void gelu_sw(int32_t* gelu_in, int32_t* gelu_out, int rows, int cols, float scal
     float sigmoid_scaling_factor = int_erf_scaling * int_erf_scaling * coef_0;
     sigmoid_scaling_factor = sigmoid_scaling_factor * (1<<constant);
 
+    // TODO, why isn't this value used? Remove if not needed
     float out_scaling_factor = scaling_factor * sigmoid_scaling_factor / 2;
 
     int32_t shift_int = int32_t(1 / sigmoid_scaling_factor);
