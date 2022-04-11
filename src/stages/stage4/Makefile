@@ -5,7 +5,7 @@ header_files = stage4.hpp ../pipeline.hpp
 
 all: stage4_test
 
-stage1_test: $(src_files) $(header_files)
+stage4_test: $(src_files) $(header_files)
 	g++ --std=c++14 -o stage4_test $(src_files)
 
 .PHONY: clean
