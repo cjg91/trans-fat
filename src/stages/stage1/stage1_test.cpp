@@ -33,15 +33,15 @@ const bool check(T* A, T* B, const int M, const int N)
 
 int main() {
 
-    auto hidden_states = new int8_t [CFG::seqlen*CFG::dmodel];
+    int8_t* hidden_states = new int8_t [CFG::seqlen*CFG::dmodel];
     
-    auto query_weight_t = new int8_t [CFG::dmodel*CFG::dmodel];
-    auto key_weight_t = new int8_t [CFG::dmodel*CFG::dmodel];
-    auto value_weight_t = new int8_t [CFG::dmodel*CFG::dmodel];
+    int8_t* query_weight_t = new int8_t [CFG::dmodel*CFG::dmodel];
+    int8_t* key_weight_t = new int8_t [CFG::dmodel*CFG::dmodel];
+    int8_t* value_weight_t = new int8_t [CFG::dmodel*CFG::dmodel];
     
-    auto query_bias = new int32_t [CFG::dmodel];    
-    auto key_bias = new int32_t [CFG::dmodel];
-    auto value_bias = new int32_t [CFG::dmodel];
+    int32_t* query_bias = new int32_t [CFG::dmodel];    
+    int32_t* key_bias = new int32_t [CFG::dmodel];
+    int32_t* value_bias = new int32_t [CFG::dmodel];
 
     genmat(hidden_states, CFG::seqlen, CFG::dmodel, 7);
 
@@ -53,17 +53,16 @@ int main() {
     genmat(key_bias, 1, CFG::dmodel, 65);
     genmat(value_bias, 1, CFG::dmodel, 67);
 
-
     float M_query = 0.5;
     float M_key = 0.4;
     float M_value = 0.3;
 
-    auto query_out_gt = new int8_t [CFG::seqlen*CFG::dmodel];
-    auto key_out_gt = new int8_t [CFG::seqlen*CFG::dmodel];
-    auto value_out_gt = new int8_t [CFG::seqlen*CFG::dmodel];
-    auto query_out = new int8_t[CFG::seqlen * CFG::dmodel];
-    auto key_out = new int8_t[CFG::seqlen * CFG::dmodel];
-    auto value_out = new int8_t[CFG::seqlen * CFG::dmodel];
+    int8_t* query_out_gt = new int8_t [CFG::seqlen*CFG::dmodel];
+    int8_t* key_out_gt = new int8_t [CFG::seqlen*CFG::dmodel];
+    int8_t* value_out_gt = new int8_t [CFG::seqlen*CFG::dmodel];
+    int8_t* query_out = new int8_t[CFG::seqlen * CFG::dmodel];
+    int8_t* key_out = new int8_t[CFG::seqlen * CFG::dmodel];
+    int8_t* value_out = new int8_t[CFG::seqlen * CFG::dmodel];
 
     stage1_gt(hidden_states, query_out_gt, key_out_gt, value_out_gt, query_weight_t, query_bias, key_weight_t, key_bias, value_weight_t, value_bias, M_query, M_key, M_value);
     stage1(hidden_states, query_out, key_out, value_out, query_weight_t, query_bias, key_weight_t, key_bias, value_weight_t, value_bias, M_query, M_key, M_value);
@@ -71,6 +70,20 @@ int main() {
     std::cout << "query_out: " << (check(query_out_gt, query_out, CFG::seqlen, CFG::dmodel) ? "PASSED" : "FAILED") << std::endl;
     std::cout << "key_out:   " << (check(key_out_gt, key_out, CFG::seqlen, CFG::dmodel) ? "PASSED" : "FAILED") << std::endl;
     std::cout << "value_out: " << (check(value_out_gt, value_out, CFG::seqlen, CFG::dmodel) ? "PASSED" : "FAILED") << std::endl;
+
+    delete [] hidden_states;
+    delete [] query_weight_t;
+    delete [] key_weight_t;
+    delete [] value_weight_t;
+    delete [] query_bias;
+    delete [] key_bias;
+    delete [] value_bias;
+    delete [] query_out;
+    delete [] query_out_gt;
+    delete [] key_out;
+    delete [] key_out_gt;
+    delete [] value_out;
+    delete [] value_out_gt;
 
     return 0;
 }

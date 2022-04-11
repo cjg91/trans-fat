@@ -58,6 +58,11 @@ int main() {
 
     std::cout << "dense_out: " << (check(dense_out, dense_out_gt, CFG::seqlen, CFG::dmodel) ? "PASSED" : "FAILED") << std::endl;
 
-    
+    delete [] fc_in;
+    delete [] dense_weight_t;
+    delete [] dense_bias;
+    delete [] dense_out;
+    delete [] dense_out_gt;
+
     return 0;
 }
