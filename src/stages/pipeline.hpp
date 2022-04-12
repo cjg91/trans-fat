@@ -10,9 +10,10 @@ typedef struct stage1_args_t
 
 typedef struct stage2_args_t
 {
-    int8_t *out;
+    int8_t *out, *dense_weight_t;
     int16_t *norm_weight, *norm_bias;
-    float scores_scale, M_attention_probs, M_attention_out, M_dense_out, M_stage2;
+    int32_t *dense_bias;
+    float M_attention_probs, M_attention_out, M_dense_out, M_residual, M_stage2;
 } stage2_args_t;
 
 typedef struct stage3_args_t
