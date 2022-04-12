@@ -1,5 +1,6 @@
 #include <cstdint>
 #include <iostream>
+#include <cmath>
 #include "../pipeline.hpp"
 
 /*
@@ -25,6 +26,26 @@ void requantize(int32_t* in, int8_t* out, const int rows, const int cols, float 
     for (int i = 0; i < rows; i++) {
         for (int j = 0; j < cols; j++) {
             out[i*cols+j] = int8_t(in[i*cols+j] * M_scale);
+        }
+    }
+}
+
+void scale(int32_t* y)
+{
+    int32_t divisor = std::sqrt(CFG::dmodel);
+    for (int i = 0; i < CFG::nhead*CFG::seqlen*CFG::seqlen; ++i){
+        y[i] /= divisor;
+    }
+}
+
+void softmax(int32_t* in, int32_t* out) {
+    // TODO: implement for real.. This just copies
+
+    for (int n = 0; n < CFG::nhead; n++) {
+        for (int i = 0; i < CFG::seqlen; i++) {
+            for (int j = 0; j < CFG::seqlen; j++) {
+                out[n*CFG::seqlen*CFG::seqlen + i*CFG::seqlen + j] = in[n*CFG::seqlen*CFG::seqlen + i*CFG::seqlen + j];
+            }
         }
     }
 }
@@ -82,7 +103,45 @@ void attention_scores(int8_t* query, int8_t* key, int32_t* out, const int seqlen
    }
 }
 
-void stage2_gt(int8_t* query_in, int8_t* key_in, int8_t* value_in, int8_t* skip_in, int8_t* stage2_out, float scores_scale, float M_attention_probs, float M_attention_out, float M_dense_out, int16_t* norm_weight, int16_t* norm_bias, float M_stage2) {
+void attention_values(int8_t* probs, int8_t* value, int32_t* attn_out, const int seqlen, const int nhead, const int dhead) {
+
+    /**
+     * probs: <nhead, seqlen, seqlen>
+     * value: <seqlen, dmodel> -> <nhead, seqlen, dhead> (same reshape/transpose as query)
+     * 
+     * attn_out: <nhead, seqlen, dhead> -> <seqlen, dmodel> (how do you index to do this in one shot)
+     * attn_out[i1][i2][i3] = attn_out[i1*seqlen*dhead + i2*dhead + i3]
+     * att_out_transpose is <seqlen, nhead, dhead>
+     * att_out_transpose[i1][i2][i3] = attn_out[i2][i1][i3] = attn_out[i2*seqlen*dhead i1*dhead + i3]
+     * 
+     * value_transpose[i1][i2][i3] = value[i2*nhead*dhead +i1*dhead + i3]
+     * 
+    */
+
+   for (int n = 0; n < nhead; n++) {
+       for (int i = 0; i < seqlen; i++) {
+           for (int j = 0; j < dhead; j++) {
+               int32_t accum = 0;
+               for (int k = 0; k < seqlen; k++) {
+                   // attn_out[n][i][j] += probs[n][i][k] * value[n][k][j]
+                    accum += probs[n*seqlen*seqlen + i*seqlen + k] * value[k*nhead*dhead +n*dhead + j];
+               }
+               attn_out[n*seqlen*dhead + i*dhead + j] = accum;
+           }
+       }
+   }
+}
+
+void stage2_gt(int8_t* query_in, int8_t* key_in, int8_t* value_in, int8_t* skip_in, int8_t* stage2_out, float M_attention_probs, float M_attention_out, float M_dense_out, int16_t* norm_weight, int16_t* norm_bias, float M_stage2) {
+
+    auto attn_score = new int32_t[CFG::nhead*CFG::seqlen*CFG::seqlen];
+    auto attn_probs = new int32_t[CFG::nhead*CFG::seqlen*CFG::seqlen];
+    auto attn_probs_int8 = new int8_t[CFG::nhead*CFG::seqlen*CFG::seqlen];
+
+    attention_scores(query_in, key_in, attn_score, CFG::seqlen, CFG::nhead, CFG::dhead);
+    scale(attn_score);
+    softmax(attn_score, attn_probs);
+    requantize(attn_probs, attn_probs_int8, 1, CFG::nhead*CFG::seqlen*CFG::seqlen, M_attention_probs);
 
 
 }

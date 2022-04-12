@@ -61,24 +61,50 @@ const bool check(T* A, T* B, const int M, const int N)
 
 int main() {
 
-    int8_t query_in[] = {0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16,
-       17, 18, 19, 20, 21, 22, 23};
-    int8_t key_in[] = {0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16,
-       17, 18, 19, 20, 21, 22, 23};
-    auto att_out_test = new int32_t [3*2*2];
+    const int nhead = 2;
+    const int seqlen = 3;
+    const int dhead = 4; 
 
-    int32_t att_out_gt[] = {14,   86,   86,  734,  126,  390,  390, 1230,  366,  822,  822, 1854};
+    /**
+     * Attention Scores Test
+    */
+    auto query_in = new int8_t[nhead*seqlen*dhead];
+    auto key_in = new int8_t[nhead*seqlen*dhead];
 
-    genmat(query_in, 1, 24, 100);
-    genmat(key_in, 1, 24, 100);
+    genmat(query_in, 1, nhead*seqlen*dhead, nhead*seqlen*dhead+1);
+    genmat(key_in, 1, nhead*seqlen*dhead, nhead*seqlen*dhead+1);
 
-    attention_scores(query_in, key_in, att_out_test, 2, 3, 4);
+    auto att_score_test = new int32_t [seqlen*nhead*nhead];
+    int32_t att_score_gt[] = {14,   86,   86,  734,  126,  390,  390, 1230,  366,  822,  822, 1854};
 
-    // delete[] query_in;
-    // delete[] key_in;
+    attention_scores(query_in, key_in, att_score_test, 2, 3, 4);
+    
+    std::cout << "att_out: " << (check(att_score_gt, att_score_test, 1, (3*2*2)) ? "PASSED" : "FAILED") << std::endl;
+
+    delete[] query_in;
+    delete[] key_in;
+    delete[] att_score_test;
+
+    /**
+     * Attention Values Test (Probs * Values)
+    */
+
+    auto value_in = new int8_t[nhead*seqlen*dhead];
+    auto probs_in = new int8_t[nhead*seqlen*seqlen];
+
+    genmat(value_in, 1, nhead*seqlen*dhead, nhead*seqlen*dhead+1);
+    genmat(probs_in, 1, nhead*seqlen*seqlen, nhead*seqlen*seqlen+1);
+
+    auto att_out_test = new int32_t [nhead*seqlen*dhead];
+
+    attention_values(probs_in, value_in, att_out_test, seqlen, nhead, dhead);
+    printmat(att_out_test, 1, nhead*seqlen*dhead);
+
+    delete[] value_in;
+    delete[] probs_in;
     delete[] att_out_test;
 
-    std::cout << "att_out: " << (check(att_out_gt, att_out_test, 1, (3*2*2)) ? "PASSED" : "FAILED") << std::endl;
+    std::cout << "att_out: " << (check(att_score_gt, att_score_test, 1, (3*2*2)) ? "PASSED" : "FAILED") << std::endl;
     // std::cout << "key_out:   " << (check(key_out_gt, key_out, CFG::seqlen, CFG::dmodel) ? "PASSED" : "FAILED") << std::endl;
     // std::cout << "value_out: " << (check(value_out_gt, value_out, CFG::seqlen, CFG::dmodel) ? "PASSED" : "FAILED") << std::endl;
 
