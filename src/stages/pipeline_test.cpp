@@ -66,14 +66,18 @@ int main()
     /********** STAGE 2 ARGS ***********/
     stage2_args_t s2_args;
     s2_args.out = new int8_t[CFG::seqlen * CFG::dmodel];
+    s2_args.dense_weight_t = new int8_t[CFG::dmodel*CFG::dmodel];
+    s2_args.dense_bias = new int32_t[CFG::dmodel];
     s2_args.norm_weight = new int16_t[CFG::dmodel];
     s2_args.norm_bias = new int16_t[CFG::dmodel];
-    s2_args.scores_scale = 0.5; // TODO: Update these scaling factors based un stage2 tests
     s2_args.M_attention_probs = 0.5;
     s2_args.M_attention_out = 0.5;
     s2_args.M_dense_out = 0.5;
+    s2_args.M_residual = 0.5;
     s2_args.M_stage2 = 0.5;
 
+    genmat(s2_args.dense_weight_t, CFG::dmodel, CFG::dmodel, 13);
+    genmat(s2_args.dense_bias, CFG::dmodel, 1, 61);
     genmat(s2_args.norm_weight, CFG::dmodel, 1, 62);
     genmat(s2_args.norm_bias, CFG::dmodel, 1, 69);
 

@@ -1,4 +1,5 @@
 src_files = stage3_test.cpp stage3.cpp
+
 header_files = stage3.hpp ../pipeline.hpp
 
 .PHONY: all
