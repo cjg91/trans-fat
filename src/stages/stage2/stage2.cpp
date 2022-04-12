@@ -260,3 +260,41 @@ void stage2_gt(int8_t* query_in, int8_t* key_in, int8_t* value_in, int8_t* skip_
     delete[] ln_out;
 
 }
+/******** ^^ unfused ground truth above ^^ *********/
+
+
+// TODO: fuse
+void stage2(int8_t *query_in, int8_t *key_in, int8_t *value_in, int8_t *skip_in, int8_t *stage2_out, int8_t *dense_weight_t, int32_t *dense_bias, float M_attention_probs, float M_attention_out, float M_dense_out, float M_residual, int16_t *norm_weight, int16_t *norm_bias, float M_stage2)
+{
+
+    auto attn_score = new int32_t[CFG::nhead * CFG::seqlen * CFG::seqlen];
+    auto attn_probs = new int32_t[CFG::nhead * CFG::seqlen * CFG::seqlen];
+    auto attn_probs_int8 = new int8_t[CFG::nhead * CFG::seqlen * CFG::seqlen];
+    auto attn_out = new int32_t[CFG::seqlen * CFG::dmodel];
+    auto attn_out_int8 = new int8_t[CFG::seqlen * CFG::dmodel];
+    auto dense_out = new int32_t[CFG::dmodel * CFG::dmodel];
+    auto dense_out_int8 = new int8_t[CFG::dmodel * CFG::dmodel];
+    auto residual = new int16_t[CFG::seqlen * CFG::dmodel];
+    auto ln_out = new int16_t[CFG::seqlen * CFG::dmodel];
+
+    attention_scores(query_in, key_in, attn_score, CFG::seqlen, CFG::nhead, CFG::dhead);
+    scale2(attn_score);
+    softmax(attn_score, attn_probs);
+    requantize2(attn_probs, attn_probs_int8, 1, CFG::nhead * CFG::seqlen * CFG::seqlen, M_attention_probs);
+    attention_values(attn_probs_int8, value_in, attn_out, CFG::seqlen, CFG::nhead, CFG::dhead);
+    requantize2(attn_out, attn_out_int8, 1, CFG::seqlen * CFG::dmodel, M_attention_out);
+    linear_sw2(attn_out_int8, dense_weight_t, dense_bias, dense_out, CFG::seqlen, CFG::dmodel, CFG::dmodel);
+    requantize2(dense_out, dense_out_int8, CFG::seqlen, CFG::dmodel, M_dense_out);
+    add_skip2(dense_out_int8, skip_in, CFG::seqlen * CFG::dmodel);
+    requantize2(dense_out_int8, residual, CFG::seqlen, CFG::dmodel, M_residual);
+    layernorm_sw2(residual, ln_out, norm_weight, norm_bias, M_residual);
+    requantize2(ln_out, stage2_out, CFG::seqlen, CFG::dmodel, M_stage2);
+
+    delete[] attn_score;
+    delete[] attn_probs;
+    delete[] attn_probs_int8;
+    delete[] attn_out;
+    delete[] attn_out_int8;
+    delete[] residual;
+    delete[] ln_out;
+}
