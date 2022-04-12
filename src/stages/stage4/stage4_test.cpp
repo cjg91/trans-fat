@@ -63,7 +63,7 @@ int main()
     int8_t *dense_out = new int8_t[CFG::seqlen * CFG::dmodel];
 
     stage4_gt(fc_in, skip_conn, M_residual, dense_weight_t, dense_bias, dense_out_gt, M_dense_acc, norm_weight, norm_bias, M_stage4);
-    stage4_gt(fc_in, skip_conn, M_residual, dense_weight_t, dense_bias, dense_out, M_dense_acc, norm_weight, norm_bias, M_stage4);
+    stage4(fc_in, skip_conn, M_residual, dense_weight_t, dense_bias, dense_out, M_dense_acc, norm_weight, norm_bias, M_stage4);
 
     std::cout << "dense_out: " << (check(dense_out_gt, dense_out, CFG::seqlen, CFG::dmodel) ? "PASSED" : "FAILED") << std::endl;
 
