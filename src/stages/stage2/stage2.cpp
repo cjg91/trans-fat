@@ -22,10 +22,11 @@ void linear_sw(int8_t* A, int8_t* B, int32_t* bias, int32_t* out, const int N, c
     }
 }
 
-void requantize(int32_t* in, int8_t* out, const int rows, const int cols, float M_scale) {
+template <typename in_t, typename out_t>
+void requantize(in_t* in, out_t* out, const int rows, const int cols, float M_scale) {
     for (int i = 0; i < rows; i++) {
         for (int j = 0; j < cols; j++) {
-            out[i*cols+j] = int8_t(in[i*cols+j] * M_scale);
+            out[i*cols+j] = out_t(in[i*cols+j] * M_scale);
         }
     }
 }
@@ -49,6 +50,95 @@ void softmax(int32_t* in, int32_t* out) {
         }
     }
 }
+
+void add_skip(int8_t* inout, const int8_t* skip_conn, const int32_t len)
+{
+    for (int i = 0; i < len; ++i){
+        inout[i] += skip_conn[i];
+    }
+}
+
+void mean(int16_t* act, int16_t* out)
+{
+    for (int i = 0; i < CFG::seqlen; ++i){
+        int32_t acc32 = 0;
+        for (int j = 0; j < CFG::dmodel; ++j){
+            acc32 += act[i * CFG::dmodel + j];
+        }
+        out[i] = int16_t(acc32/CFG::dmodel);
+    }
+}
+
+void sum(int16_t* in, int16_t* out)
+{
+    for (int i = 0; i < CFG::seqlen; ++i){
+        out[i] = 0;
+        for (int j = 0; j < CFG::dmodel; ++j){
+            out[i] += in[i * CFG::dmodel + j];
+        }
+    }
+}
+
+void diff(int16_t* y, int16_t* act, int16_t* means)
+{
+    for (int i = 0; i < CFG::seqlen; ++i){
+        for (int j = 0; j < CFG::dmodel; ++j){  
+            y[i*CFG::dmodel + j] = act[i*CFG::dmodel + j] - means[i];
+        }
+    }
+}
+
+void div(int16_t* y, int16_t* stdev)
+{
+    for (int i = 0; i < CFG::seqlen; ++i){
+        for (int j = 0; j < CFG::dmodel; ++j){
+            y[i * CFG::dmodel + j] /= stdev[i];
+        }
+    }
+}
+
+void layernorm_sw(int16_t* act, int16_t* y, int16_t* norm_weight, int16_t* norm_bias, float scaling_factor)
+{
+    int16_t* means = new int16_t[CFG::seqlen];
+    int16_t* y_sq = new int16_t[CFG::seqlen * CFG::dmodel];
+    int16_t* var = new int16_t[CFG::seqlen];
+    int16_t *stdev = new int16_t[CFG::seqlen];
+
+    mean(act, means);
+    diff(y, act, means);
+    
+    // square elements
+    for (int i = 0; i < CFG::dmodel * CFG::seqlen; ++i){
+        y_sq[i] = int16_t(int32_t((y[i] * y[i])) / CFG::dmodel);
+    }
+    
+    // compute var by summing y^2
+    sum(y_sq, var);
+    
+    // calculate constant for std computation
+    int16_t C = int16_t(CFG::eps / scaling_factor);
+    
+    // compute std
+    for (int i = 0; i < CFG::seqlen; ++i){
+        stdev[i] = int16_t(sqrt(float(var[i] + C)));
+    }
+
+    // perform the division on each element in y
+    div(y, stdev);
+    
+    // perform macs
+    for (int i = 0; i < CFG::dmodel; ++i){
+        for (int j = 0; j < CFG::seqlen; ++j){
+            y[j * CFG::dmodel + i] = int16_t((y[j * CFG::dmodel + i] * norm_weight[i] + norm_bias[i]) * scaling_factor);
+        }
+    }
+
+   delete [] means;
+   delete [] y_sq;
+   delete [] var;
+   delete [] stdev;
+}
+    
 
 /**
  * 
@@ -129,23 +219,44 @@ void attention_values(int8_t* probs, int8_t* value, int32_t* attn_out, const int
                    // attn_out[n][i][j] += probs[n][i][k] * value[n][k][j]
                     accum += probs[n*seqlen*seqlen + i*seqlen + k] * value[k*nhead*dhead +n*dhead + j];
                }
-            //    attn_out[n*seqlen*dhead + i*dhead + j] = accum;
+               // writes to attn_out to obtain <seqlen, dmodel> shape
                attn_out[i*nhead*dhead + n*dhead + j] = accum;
            }
        }
    }
 }
 
-void stage2_gt(int8_t* query_in, int8_t* key_in, int8_t* value_in, int8_t* skip_in, int8_t* stage2_out, float M_attention_probs, float M_attention_out, float M_dense_out, int16_t* norm_weight, int16_t* norm_bias, float M_stage2) {
+void stage2_gt(int8_t* query_in, int8_t* key_in, int8_t* value_in, int8_t* skip_in, int8_t* stage2_out, int8_t* dense_weight_t, int32_t* dense_bias, float M_attention_probs, float M_attention_out, float M_dense_out, float M_residual, int16_t* norm_weight, int16_t* norm_bias, float M_stage2) {
 
     auto attn_score = new int32_t[CFG::nhead*CFG::seqlen*CFG::seqlen];
     auto attn_probs = new int32_t[CFG::nhead*CFG::seqlen*CFG::seqlen];
     auto attn_probs_int8 = new int8_t[CFG::nhead*CFG::seqlen*CFG::seqlen];
+    auto attn_out = new int32_t[CFG::seqlen*CFG::dmodel];
+    auto attn_out_int8 = new int8_t[CFG::seqlen*CFG::dmodel];
+    auto dense_out = new int32_t[CFG::dmodel*CFG::dmodel];
+    auto dense_out_int8 = new int8_t[CFG::dmodel*CFG::dmodel];
+    auto residual = new int16_t[CFG::seqlen*CFG::dmodel];
+    auto ln_out = new int16_t[CFG::seqlen*CFG::dmodel];
 
     attention_scores(query_in, key_in, attn_score, CFG::seqlen, CFG::nhead, CFG::dhead);
     scale(attn_score);
     softmax(attn_score, attn_probs);
     requantize(attn_probs, attn_probs_int8, 1, CFG::nhead*CFG::seqlen*CFG::seqlen, M_attention_probs);
+    attention_values(attn_probs_int8, value_in, attn_out, CFG::seqlen, CFG::nhead, CFG::dhead);
+    requantize(attn_out, attn_out_int8, 1, CFG::seqlen*CFG::dmodel, M_attention_out);
+    linear_sw(attn_out_int8, dense_weight_t, dense_bias, dense_out, CFG::seqlen, CFG::dmodel, CFG::dmodel);
+    requantize(dense_out, dense_out_int8, CFG::seqlen, CFG::dmodel, M_dense_out);
+    add_skip(dense_out_int8, skip_in, CFG::seqlen*CFG::dmodel);
+    requantize(dense_out_int8, residual, CFG::seqlen, CFG::dmodel, M_residual);
+    layernorm_sw(residual, ln_out, norm_weight, norm_bias, M_residual);
+    requantize(ln_out, stage2_out, CFG::seqlen, CFG::dmodel, M_stage2);
 
+    delete[] attn_score;
+    delete[] attn_probs;
+    delete[] attn_probs_int8;
+    delete[] attn_out;
+    delete[] attn_out_int8;
+    delete[] residual;
+    delete[] ln_out;
 
 }

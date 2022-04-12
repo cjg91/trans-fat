@@ -109,5 +109,43 @@ int main() {
     delete[] att_out_test;
 
 
+
+    /**
+     * 
+     * Test Fused Correctness
+     * 
+    */
+
+    query_in = new int8_t[CFG::seqlen*CFG::dmodel];
+    key_in = new int8_t[CFG::seqlen*CFG::dmodel];
+    value_in = new int8_t[CFG::seqlen*CFG::dmodel];
+    auto skip_in = new int8_t[CFG::seqlen*CFG::dmodel];
+    auto dense_weight_t = new int8_t[CFG::dmodel*CFG::dmodel];
+    auto dense_bias = new int32_t[CFG::dmodel];
+    auto norm_weight = new int16_t[CFG::dmodel];
+    auto norm_bias = new int16_t[CFG::dmodel];
+    auto stage2_out = new int8_t[CFG::seqlen*CFG::dmodel];
+
+    genmat(query_in, CFG::seqlen, CFG::dmodel, 7);
+    genmat(key_in, CFG::seqlen, CFG::dmodel, 9);
+    genmat(value_in, CFG::seqlen, CFG::dmodel, 11);
+    genmat(skip_in, CFG::seqlen, CFG::dmodel, 13);
+    genmat(dense_weight_t, CFG::dmodel, CFG::dmodel, 15);
+    genmat(dense_bias, 1, CFG::dmodel, 63);
+    genmat(norm_weight, 1, CFG::dmodel, 17);
+    genmat(norm_bias, 1, CFG::dmodel, 23);
+
+    float M_attention_probs = 0.1;
+    float M_attention_out = 0.1;
+    float M_dense_out = 0.1;
+    float M_residual = 1;
+    float M_stage2 = 1;
+
+
+    stage2_gt(query_in, key_in, value_in, skip_in, stage2_out, dense_weight_t, dense_bias, M_attention_probs, M_attention_out, M_dense_out, M_residual, norm_weight, norm_bias, M_stage2);
+
+    printmat(stage2_out, CFG::seqlen, CFG::dmodel);
+
+
     return 0;
 }
