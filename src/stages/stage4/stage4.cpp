@@ -3,7 +3,7 @@
 #include <stdio.h>
 #include "../../config.hpp"
 
-void linear_sw(int8_t* A, int8_t* B, int32_t* bias, int32_t* out, const int N, const int M, const int K) {
+void linear_sw4(int8_t* A, int8_t* B, int32_t* bias, int32_t* out, const int N, const int M, const int K) {
     
     for (int i = 0; i < N; i++) {
         for (int j = 0; j < M; j++) {
@@ -15,7 +15,7 @@ void linear_sw(int8_t* A, int8_t* B, int32_t* bias, int32_t* out, const int N, c
     }
 }
 template <typename in_t, typename out_t>
-void requantize(in_t* in, out_t* out, const int rows, const int cols, float M_scale) {
+void requantize4(in_t* in, out_t* out, const int rows, const int cols, float M_scale) {
     for (int i = 0; i < rows; i++) {
         for (int j = 0; j < cols; j++) {
             out[i*cols+j] = out_t(in[i*cols+j] * M_scale);
@@ -119,12 +119,12 @@ void stage4_gt(int8_t *fc_in, int8_t *skip_conn, float M_residual, int8_t *dense
     int16_t* ln_fc_in = new int16_t[CFG::seqlen * CFG::dmodel];
     int16_t* ln_out = new int16_t[CFG::seqlen * CFG::dmodel];
 
-    linear_sw(fc_in, dense_weight_t, dense_bias, fc_out, CFG::seqlen, CFG::dmodel, CFG::ffdim);
-    requantize(fc_out, fc_out_quant, CFG::seqlen, CFG::dmodel, M_dense_acc);
+    linear_sw4(fc_in, dense_weight_t, dense_bias, fc_out, CFG::seqlen, CFG::dmodel, CFG::ffdim);
+    requantize4(fc_out, fc_out_quant, CFG::seqlen, CFG::dmodel, M_dense_acc);
     add_skip(fc_out_quant, skip_conn, CFG::seqlen * CFG::dmodel);
-    requantize(fc_out_quant, ln_fc_in, CFG::seqlen, CFG::dmodel, M_residual);
+    requantize4(fc_out_quant, ln_fc_in, CFG::seqlen, CFG::dmodel, M_residual);
     layernorm_sw(ln_fc_in, ln_out, norm_weight, norm_bias, M_residual);
-    requantize(ln_out, dense_out, CFG::seqlen, CFG::dmodel, M_stage4);
+    requantize4(ln_out, dense_out, CFG::seqlen, CFG::dmodel, M_stage4);
 
     delete [] fc_out;
     delete [] fc_out_quant;
