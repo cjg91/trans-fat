@@ -88,7 +88,6 @@ int main() {
     /**
      * Attention Values Test (Probs * Values)
     */
-
     auto value_in = new int8_t[nhead*seqlen*dhead];
     auto probs_in = new int8_t[nhead*seqlen*seqlen];
 
@@ -124,7 +123,9 @@ int main() {
     auto dense_bias = new int32_t[CFG::dmodel];
     auto norm_weight = new int16_t[CFG::dmodel];
     auto norm_bias = new int16_t[CFG::dmodel];
-    auto stage2_out = new int8_t[CFG::seqlen*CFG::dmodel];
+    auto stage2_out_test = new int8_t[CFG::seqlen*CFG::dmodel];
+    auto stage2_out_gt = new int8_t[CFG::seqlen*CFG::dmodel];
+
 
     genmat(query_in, CFG::seqlen, CFG::dmodel, 7);
     genmat(key_in, CFG::seqlen, CFG::dmodel, 9);
@@ -135,17 +136,28 @@ int main() {
     genmat(norm_weight, 1, CFG::dmodel, 17);
     genmat(norm_bias, 1, CFG::dmodel, 23);
 
-    float M_attention_probs = 0.1;
-    float M_attention_out = 0.1;
-    float M_dense_out = 0.1;
+    float M_attention_probs = .1;
+    float M_attention_out = .1;
+    float M_dense_out = .1;
     float M_residual = 1;
     float M_stage2 = 1;
 
 
-    stage2_gt(query_in, key_in, value_in, skip_in, stage2_out, dense_weight_t, dense_bias, M_attention_probs, M_attention_out, M_dense_out, M_residual, norm_weight, norm_bias, M_stage2);
+    stage2_gt(query_in, key_in, value_in, skip_in, stage2_out_gt, dense_weight_t, dense_bias, M_attention_probs, M_attention_out, M_dense_out, M_residual, norm_weight, norm_bias, M_stage2);
+    stage2(query_in, key_in, value_in, skip_in, stage2_out_test, dense_weight_t, dense_bias, M_attention_probs, M_attention_out, M_dense_out, M_residual, norm_weight, norm_bias, M_stage2);
 
-    printmat(stage2_out, CFG::seqlen, CFG::dmodel);
+    std::cout << "att_out: " << (check(stage2_out_gt, stage2_out_test, 1,CFG::seqlen*CFG::dmodel ) ? "PASSED" : "FAILED") << std::endl;
 
+    delete[] query_in;
+    delete[] key_in;
+    delete[] value_in;
+    delete[] skip_in;
+    delete[] dense_weight_t;
+    delete[] dense_bias;
+    delete[] norm_weight; 
+    delete[] norm_bias;
+    delete[] stage2_out_test;
+    delete[] stage2_out_gt;
 
     return 0;
 }
