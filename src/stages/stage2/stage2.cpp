@@ -64,6 +64,9 @@ void softmax(int32_t* in, int32_t* out) {
  * if A[i][j][k] was transposed in a way that rotated the dimensions around the right, so it now looks like B[k][i][j],
  * the way you index B[i][j][k] is with A[j][k][i]. This makes the most sense if each dimension means something to you,
  * like nhead, seqlen, and dhead. 
+ * 
+ * Then, you can flatten you new reordered index by, for each index, multiplying it by the product of the dimensions
+ * following it and adding that to your accumulated index.
 */
 
 void attention_scores(int8_t* query, int8_t* key, int32_t* out, const int seqlen, const int nhead, const int dhead) {
@@ -112,7 +115,7 @@ void attention_values(int8_t* probs, int8_t* value, int32_t* attn_out, const int
      * attn_out: <nhead, seqlen, dhead> -> <seqlen, dmodel> (how do you index to do this in one shot)
      * attn_out[i1][i2][i3] = attn_out[i1*seqlen*dhead + i2*dhead + i3]
      * att_out_transpose is <seqlen, nhead, dhead>
-     * att_out_transpose[i1][i2][i3] = attn_out[i2][i1][i3] = attn_out[i2*seqlen*dhead i1*dhead + i3]
+     * att_out_transpose[i1][i2][i3] = attn_out[i2][i1][i3] = attn_out[i2*nhead*dhead + i1*dhead + i3]
      * 
      * value_transpose[i1][i2][i3] = value[i2*nhead*dhead +i1*dhead + i3]
      * 
@@ -126,7 +129,8 @@ void attention_values(int8_t* probs, int8_t* value, int32_t* attn_out, const int
                    // attn_out[n][i][j] += probs[n][i][k] * value[n][k][j]
                     accum += probs[n*seqlen*seqlen + i*seqlen + k] * value[k*nhead*dhead +n*dhead + j];
                }
-               attn_out[n*seqlen*dhead + i*dhead + j] = accum;
+            //    attn_out[n*seqlen*dhead + i*dhead + j] = accum;
+               attn_out[i*nhead*dhead + n*dhead + j] = accum;
            }
        }
    }

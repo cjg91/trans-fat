@@ -96,17 +96,18 @@ int main() {
     genmat(probs_in, 1, nhead*seqlen*seqlen, nhead*seqlen*seqlen+1);
 
     auto att_out_test = new int32_t [nhead*seqlen*dhead];
+    int32_t att_out_gt[] = { 40,  43,  46,  49, 376, 406, 436, 466, 112, 124, 136, 148, 484, 523,
+        562, 601, 184, 205, 226, 247, 592, 640, 688, 736};
 
     attention_values(probs_in, value_in, att_out_test, seqlen, nhead, dhead);
-    printmat(att_out_test, 1, nhead*seqlen*dhead);
+
+    std::cout << "att_out: " << (check(att_out_gt, att_out_test, 1, seqlen*nhead*dhead) ? "PASSED" : "FAILED") << std::endl;
+
 
     delete[] value_in;
     delete[] probs_in;
     delete[] att_out_test;
 
-    std::cout << "att_out: " << (check(att_score_gt, att_score_test, 1, (3*2*2)) ? "PASSED" : "FAILED") << std::endl;
-    // std::cout << "key_out:   " << (check(key_out_gt, key_out, CFG::seqlen, CFG::dmodel) ? "PASSED" : "FAILED") << std::endl;
-    // std::cout << "value_out: " << (check(value_out_gt, value_out, CFG::seqlen, CFG::dmodel) ? "PASSED" : "FAILED") << std::endl;
 
     return 0;
 }
