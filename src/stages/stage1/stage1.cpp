@@ -43,9 +43,9 @@ void stage1_gt(int8_t* in, int8_t* query_out, int8_t* key_out, int8_t* value_out
     requantize(key, key_out, CFG::seqlen, CFG::dmodel, M_key);
     requantize(value, value_out, CFG::seqlen, CFG::dmodel, M_value);
 
-    delete[] query;
-    delete[] key;
-    delete[] value;
+    delete [] query;
+    delete [] key;
+    delete [] value;
 }
 
 /*^^^^^^^^^^^^^^^^^^^ END GT ^^^^^^^^^^^^^^^^^^^*/
