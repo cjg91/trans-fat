@@ -1,8 +1,9 @@
-#include "pipeline.hpp"
 #include "stage1/stage1.hpp"
 #include "stage2/stage2.hpp"
 #include "stage3/stage3.hpp"
 #include "stage4/stage4.hpp"
+#include "../config.hpp"
+#include "pipeline.hpp"
 
 void fpga1_gt(stage1_args_t s1_args, stage2_args_t s2_args)
 {

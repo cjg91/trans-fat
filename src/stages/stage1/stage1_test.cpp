@@ -1,5 +1,5 @@
 #include "stage1.hpp"
-#include "../pipeline.hpp"
+#include "../../config.hpp"
 #include <iostream>
 
 void printmat(int8_t* A, const int M, const int N) {

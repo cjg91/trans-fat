@@ -1,16 +1,6 @@
 #pragma once
 #include <cstdint>
 
-namespace CFG
-{
-    constexpr int seqlen = 128;
-    constexpr int nhead = 12;
-    constexpr int dhead = 64;
-    constexpr int dmodel = 768;
-    constexpr int ffdim = 3072;
-    constexpr float eps = 1e-5;
-} // namespace CONFIG
-
 typedef struct stage1_args_t
 {
     int8_t *in, *query_weight_t, *key_weight_t, *value_weight_t;

@@ -1,4 +1,5 @@
 #include "pipeline.hpp"
+#include "../config.hpp"
 #include <memory.h>
 #include <iostream>
 
