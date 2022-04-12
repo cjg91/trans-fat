@@ -35,7 +35,7 @@ void fpga1(stage1_args_t s1_args, stage2_args_t s2_args)
     stage1(s1_args.in, q, k, v, s1_args.query_weight_t, s1_args.query_bias, s1_args.key_weight_t, s1_args.key_bias,
               s1_args.value_weight_t, s1_args.value_bias, s1_args.M_query, s1_args.M_key, s1_args.M_value);
 
-    stage2_gt(q, k, v, s1_args.in, s2_args.out, s2_args.dense_weight_t, s2_args.dense_bias, s2_args.M_attention_probs, s2_args.M_attention_out,
+    stage2(q, k, v, s1_args.in, s2_args.out, s2_args.dense_weight_t, s2_args.dense_bias, s2_args.M_attention_probs, s2_args.M_attention_out,
               s2_args.M_dense_out, s2_args.M_residual, s2_args.norm_weight, s2_args.norm_bias, s2_args.M_stage2);
     
 }
