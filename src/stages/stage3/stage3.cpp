@@ -1,7 +1,7 @@
 #include <cstdint>
 #include <algorithm>
 #include <stdio.h>
-#include "../pipeline.hpp"
+#include "../../config.hpp"
 
 /*
     A: NxK
@@ -9,7 +9,7 @@
     out: NxM
     Bias: 1xM
 */
-void linear_sw(int8_t* A, int8_t* B, int32_t* bias, int32_t* out, const int N, const int M, const int K) {
+void linear_sw3(int8_t* A, int8_t* B, int32_t* bias, int32_t* out, const int N, const int M, const int K) {
     
     for (int i = 0; i < N; i++) {
         for (int j = 0; j < M; j++) {
@@ -68,7 +68,7 @@ void gelu_sw(int32_t* gelu_in, int32_t* gelu_out, int rows, int cols, float scal
 }
 
 
-void requantize(int32_t* in, int8_t* out, const int rows, const int cols, float M_scale) {
+void requantize2(int32_t* in, int8_t* out, const int rows, const int cols, float M_scale) {
     for (int i = 0; i < rows; i++) {
         for (int j = 0; j < cols; j++) {
             out[i*cols+j] = int8_t(in[i*cols+j] * M_scale);
@@ -80,7 +80,7 @@ void requantize(int32_t* in, int8_t* out, const int rows, const int cols, float 
 void stage3_gt(int8_t* fc_in, int8_t* dense_weight_t, int32_t* dense_bias, int8_t* dense_out, float dense_acc_scale, float M_stage3) {
     /*
     High level: inputs are int8_t, output is int8_t. The linear layer goes from int8 -> int32. then, apply GeLU (which takes scaling_factor 
-    that is related to the int32_t quantization) which goes from int32 -> int32, then requantize to int8. This can all be fused.
+    that is related to the int32_t quantization) which goes from int32 -> int32, then requantize2 to int8. This can all be fused.
 
     dense_acc_scale:    the scaling factor used within I-GeLU
     M_stage 3:          the requantization factor used to quantize the output of GeLU from 32 to 8 bits.
@@ -91,9 +91,9 @@ void stage3_gt(int8_t* fc_in, int8_t* dense_weight_t, int32_t* dense_bias, int8_
     auto gelu_temp = new int32_t[CFG::seqlen*CFG::ffdim];
 
 
-    linear_sw(fc_in, dense_weight_t, dense_bias, dense_temp, CFG::seqlen, CFG::ffdim, CFG::dmodel);
+    linear_sw3(fc_in, dense_weight_t, dense_bias, dense_temp, CFG::seqlen, CFG::ffdim, CFG::dmodel);
     gelu_sw(dense_temp, gelu_temp, CFG::seqlen, CFG::ffdim, dense_acc_scale);
-    requantize(gelu_temp, dense_out, CFG::seqlen, CFG::ffdim, M_stage3);
+    requantize2(gelu_temp, dense_out, CFG::seqlen, CFG::ffdim, M_stage3);
 
 }
 
@@ -161,7 +161,7 @@ void stage3(int8_t *fc_in, int8_t *dense_weight_t, int32_t *dense_bias, int8_t *
 {
     /*
     High level: inputs are int8_t, output is int8_t. The linear layer goes from int8 -> int32. then, apply GeLU (which takes scaling_factor
-    that is related to the int32_t quantization) which goes from int32 -> int32, then requantize to int8. This can all be fused.
+    that is related to the int32_t quantization) which goes from int32 -> int32, then requantize2 to int8. This can all be fused.
 
     dense_acc_scale:    the scaling factor used within I-GeLU
     M_stage 3:          the requantization factor used to quantize the output of GeLU from 32 to 8 bits.
