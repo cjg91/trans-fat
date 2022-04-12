@@ -70,11 +70,11 @@ int main()
     s2_args.dense_bias = new int32_t[CFG::dmodel];
     s2_args.norm_weight = new int16_t[CFG::dmodel];
     s2_args.norm_bias = new int16_t[CFG::dmodel];
-    s2_args.M_attention_probs = 0.5;
-    s2_args.M_attention_out = 0.5;
-    s2_args.M_dense_out = 0.5;
-    s2_args.M_residual = 0.5;
-    s2_args.M_stage2 = 0.5;
+    s2_args.M_attention_probs = 0.1;
+    s2_args.M_attention_out = 0.1;
+    s2_args.M_dense_out = 0.1;
+    s2_args.M_residual = 1;
+    s2_args.M_stage2 = 1;
 
     genmat(s2_args.dense_weight_t, CFG::dmodel, CFG::dmodel, 13);
     genmat(s2_args.dense_bias, CFG::dmodel, 1, 61);
@@ -100,9 +100,9 @@ int main()
     s4_args.norm_weight = new int16_t[CFG::dmodel];
     s4_args.dense_bias = new int32_t[CFG::dmodel];
     s4_args.dense_out = new int8_t[CFG::seqlen * CFG::dmodel];
-    s4_args.M_residual = 3;
-    s4_args.M_dense_acc = 0.04;
-    s4_args.M_stage4 = 0.3;
+    s4_args.M_residual = 2;
+    s4_args.M_dense_acc = .9;
+    s4_args.M_stage4 = 1;
 
     genmat(s4_args.dense_weight_t, CFG::ffdim, CFG::dmodel, 9);
     genmat(s4_args.dense_bias, CFG::dmodel, 1, 44);
