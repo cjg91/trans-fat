@@ -269,7 +269,6 @@ void stage2_gt(int8_t* query_in, int8_t* key_in, int8_t* value_in, int8_t* skip_
 
     auto attn_score = new int32_t[CFG::nhead*CFG::seqlen*CFG::seqlen];
     auto attn_probs = new int8_t[CFG::nhead*CFG::seqlen*CFG::seqlen];
-    // auto attn_probs_int8 = new int8_t[CFG::nhead*CFG::seqlen*CFG::seqlen];
     auto attn_out = new int32_t[CFG::seqlen*CFG::dmodel];
     auto attn_out_int8 = new int8_t[CFG::seqlen*CFG::dmodel];
     auto dense_out = new int32_t[CFG::dmodel*CFG::dmodel];
@@ -280,7 +279,6 @@ void stage2_gt(int8_t* query_in, int8_t* key_in, int8_t* value_in, int8_t* skip_
     attention_scores(query_in, key_in, attn_score, CFG::seqlen, CFG::nhead, CFG::dhead);
     scale(attn_score);
     softmax(attn_score, attn_probs, M_attention_probs);
-    // requantize2(attn_probs, attn_probs_int8, 1, CFG::nhead*CFG::seqlen*CFG::seqlen, M_attention_probs);
     attention_values(attn_probs, value_in, attn_out, CFG::seqlen, CFG::nhead, CFG::dhead);
     requantize2(attn_out, attn_out_int8, 1, CFG::seqlen*CFG::dmodel, M_attention_out);
     linear_sw2(attn_out_int8, dense_weight_t, dense_bias, dense_out, CFG::seqlen, CFG::dmodel, CFG::dmodel);
@@ -292,9 +290,10 @@ void stage2_gt(int8_t* query_in, int8_t* key_in, int8_t* value_in, int8_t* skip_
 
     delete[] attn_score;
     delete[] attn_probs;
-    // delete[] attn_probs_int8;
     delete[] attn_out;
     delete[] attn_out_int8;
+    delete[] dense_out;
+    delete[] dense_out_int8;
     delete[] residual;
     delete[] ln_out;
 
@@ -319,9 +318,6 @@ void attention_scores_fused(int8_t* query, int8_t* key, int8_t* out, const int s
                 rowbuff[j] = accum / divisor;
             }
             softmax_fused(rowbuff, out, n*seqlen*seqlen + i*seqlen, M_attention_probs);
-            // for (int j = 0; j < seqlen; j++) {
-            //     out[n*seqlen*seqlen + i*seqlen + j] = int8_t(rowbuff[j] * M_attention_probs);
-            // }
         }
     }
 }
