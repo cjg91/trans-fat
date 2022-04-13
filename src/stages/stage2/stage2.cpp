@@ -83,11 +83,11 @@ void softmax_fused(int32_t* input, int8_t* output, int start_idx, float M_softma
 	for (i = 0; i < CFG::seqlen; ++i) {
 		sum += exp(input[i] - m);
 	}
-
+    
 	constant = m + log(sum);
 	for (i = 0; i < CFG::seqlen; ++i) {
 		output[start_idx+i] = int8_t(exp(input[i] - constant)*M_softmax);
-	}
+    }
 }
 
 void add_skip2(int8_t* inout, const int8_t* skip_conn, const int32_t len)
