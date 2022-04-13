@@ -136,7 +136,7 @@ int main() {
     genmat(norm_weight, 1, CFG::dmodel, 17);
     genmat(norm_bias, 1, CFG::dmodel, 23);
 
-    float M_attention_probs = .1;
+    float M_attention_probs = 100;
     float M_attention_out = .1;
     float M_dense_out = .1;
     float M_residual = 1;
@@ -148,6 +148,8 @@ int main() {
 
     std::cout << "att_out: " << (check(stage2_out_gt, stage2_out_test, 1,CFG::seqlen*CFG::dmodel ) ? "PASSED" : "FAILED") << std::endl;
 
+    printmat(stage2_out_gt, 1, 10);
+    printmat(stage2_out_test, 1, 10);
     delete[] query_in;
     delete[] key_in;
     delete[] value_in;

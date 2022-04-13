@@ -39,20 +39,55 @@ void scale (int32_t* y)
     }
 }
 
-void softmax(int32_t* in, int32_t* out) {
-    // TODO: implement for real.. This just copies
+void softmax(int32_t* input, int8_t* output, float M_softmax) {
+	double m, sum, constant;
+    int j;
 
     for (int n = 0; n < CFG::nhead; n++) {
         for (int i = 0; i < CFG::seqlen; i++) {
-            for (int j = 0; j < CFG::seqlen; j++) {
-                out[n*CFG::seqlen*CFG::seqlen + i*CFG::seqlen + j] = in[n*CFG::seqlen*CFG::seqlen + i*CFG::seqlen + j];
+            // find max elem
+            m = input[n*CFG::seqlen*CFG::seqlen+i*CFG::seqlen];
+            for (j = 0; j < CFG::seqlen; ++j) {
+                if (m < input[n*CFG::seqlen*CFG::seqlen+i*CFG::seqlen+j]) {
+                    m = input[n*CFG::seqlen*CFG::seqlen+i*CFG::seqlen+j];
+                }
+            }
+
+            sum = 0.0;
+            for (j = 0; j < CFG::seqlen; ++j) {
+                sum += exp(input[n*CFG::seqlen*CFG::seqlen+i*CFG::seqlen+j] - m);
+            }
+
+            constant = m + log(sum);
+            for (j = 0; j < CFG::seqlen; ++j) {
+                output[n*CFG::seqlen*CFG::seqlen+i*CFG::seqlen+j] = int8_t(exp(input[n*CFG::seqlen*CFG::seqlen+i*CFG::seqlen+j] - constant)*M_softmax);
             }
         }
     }
 }
 
-void softmax(int32_t*in) {
-    // another stub for softmax, used in fused op. operates in-place
+void softmax_fused(int32_t* input, int8_t* output, int start_idx, float M_softmax) {
+
+	int i;
+	double m, sum, constant;
+
+    // find max elem
+	m = input[0];
+	for (i = 0; i < CFG::seqlen; ++i) {
+		if (m < input[i]) {
+			m = input[i];
+		}
+	}
+
+	sum = 0.0;
+	for (i = 0; i < CFG::seqlen; ++i) {
+		sum += exp(input[i] - m);
+	}
+    
+	constant = m + log(sum);
+	for (i = 0; i < CFG::seqlen; ++i) {
+		output[start_idx+i] = int8_t(exp(input[i] - constant)*M_softmax);
+    }
 }
 
 void add_skip2(int8_t* inout, const int8_t* skip_conn, const int32_t len)
@@ -233,8 +268,7 @@ void attention_values(int8_t* probs, int8_t* value, int32_t* attn_out, const int
 void stage2_gt(int8_t* query_in, int8_t* key_in, int8_t* value_in, int8_t* skip_in, int8_t* stage2_out, int8_t* dense_weight_t, int32_t* dense_bias, float M_attention_probs, float M_attention_out, float M_dense_out, float M_residual, int16_t* norm_weight, int16_t* norm_bias, float M_stage2) {
 
     auto attn_score = new int32_t[CFG::nhead*CFG::seqlen*CFG::seqlen];
-    auto attn_probs = new int32_t[CFG::nhead*CFG::seqlen*CFG::seqlen];
-    auto attn_probs_int8 = new int8_t[CFG::nhead*CFG::seqlen*CFG::seqlen];
+    auto attn_probs = new int8_t[CFG::nhead*CFG::seqlen*CFG::seqlen];
     auto attn_out = new int32_t[CFG::seqlen*CFG::dmodel];
     auto attn_out_int8 = new int8_t[CFG::seqlen*CFG::dmodel];
     auto dense_out = new int32_t[CFG::dmodel*CFG::dmodel];
@@ -244,9 +278,8 @@ void stage2_gt(int8_t* query_in, int8_t* key_in, int8_t* value_in, int8_t* skip_
 
     attention_scores(query_in, key_in, attn_score, CFG::seqlen, CFG::nhead, CFG::dhead);
     scale(attn_score);
-    softmax(attn_score, attn_probs);
-    requantize2(attn_probs, attn_probs_int8, 1, CFG::nhead*CFG::seqlen*CFG::seqlen, M_attention_probs);
-    attention_values(attn_probs_int8, value_in, attn_out, CFG::seqlen, CFG::nhead, CFG::dhead);
+    softmax(attn_score, attn_probs, M_attention_probs);
+    attention_values(attn_probs, value_in, attn_out, CFG::seqlen, CFG::nhead, CFG::dhead);
     requantize2(attn_out, attn_out_int8, 1, CFG::seqlen*CFG::dmodel, M_attention_out);
     linear_sw2(attn_out_int8, dense_weight_t, dense_bias, dense_out, CFG::seqlen, CFG::dmodel, CFG::dmodel);
     requantize2(dense_out, dense_out_int8, CFG::seqlen, CFG::dmodel, M_dense_out);
@@ -257,9 +290,10 @@ void stage2_gt(int8_t* query_in, int8_t* key_in, int8_t* value_in, int8_t* skip_
 
     delete[] attn_score;
     delete[] attn_probs;
-    delete[] attn_probs_int8;
     delete[] attn_out;
     delete[] attn_out_int8;
+    delete[] dense_out;
+    delete[] dense_out_int8;
     delete[] residual;
     delete[] ln_out;
 
@@ -283,10 +317,7 @@ void attention_scores_fused(int8_t* query, int8_t* key, int8_t* out, const int s
                 // out[n,i,j] = accum
                 rowbuff[j] = accum / divisor;
             }
-            softmax(rowbuff);
-            for (int j = 0; j < seqlen; j++) {
-                out[n*seqlen*seqlen + i*seqlen + j] = int8_t(rowbuff[j] * M_attention_probs);
-            }
+            softmax_fused(rowbuff, out, n*seqlen*seqlen + i*seqlen, M_attention_probs);
         }
     }
 }
