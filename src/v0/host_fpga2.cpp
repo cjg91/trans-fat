@@ -58,31 +58,32 @@ int main(int argc, char **argv) {
 	std::vector<int8_t, aligned_allocator<int8_t>> stage3_dense_weight_t(CFG::dmodel*CFG::ffdim);
 	std::vector<int32_t, aligned_allocator<int32_t>> stage3_dense_bias(CFG::ffdim);
 	std::vector<int8_t, aligned_allocator<int8_t>> fc3_to_fc4_buff(CFG::seqlen*CFG::ffdim);
+
+    stage3_args_t s3_args;
+    s3_args.fc_in = stage3_fc_in.data();
+    s3_args.dense_weight_t = stage3_dense_weight_t.data();
+    s3_args.dense_bias = stage3_dense_bias.data();
+    s3_args.dense_acc_scale = 0.004;
+    s3_args.M_stage3 = 0.3;
+
+    genmat(s3_args.fc_in, CFG::seqlen, CFG::dmodel, 21);
+    genmat(s3_args.dense_weight_t, CFG::dmodel, CFG::ffdim, 13);
+    genmat(s3_args.dense_bias, 1, CFG::ffdim, 71);
+
+    /********** STAGE 4 ARGS ***********/
 	std::vector<int8_t, aligned_allocator<int8_t>> stage4_dense_weight_t(CFG::ffdim*CFG::dmodel);
 	std::vector<int8_t, aligned_allocator<int8_t>> stage4_dense_out(CFG::seqlen*CFG::dmodel);
 	std::vector<int32_t, aligned_allocator<int32_t>> stage4_dense_bias(CFG::dmodel);
 	std::vector<int16_t, aligned_allocator<int16_t>> stage4_norm_weight(CFG::dmodel);
 	std::vector<int16_t, aligned_allocator<int16_t>> stage4_norm_bias(CFG::dmodel);
 
-    stage3_args_t s3_args;
-    s3_args.fc_in = stage3_fc_in.data();
-    
-    s3_args.dense_weight_t = stage3_dense_weight_t.data();
-    s3_args.dense_bias = stage3_dense_bias.data();
-    s3_args.dense_acc_scale = 0.004;
-    s3_args.M_stage3 = 0.3;
-
-    genmat(s3_args.dense_weight_t, CFG::dmodel, CFG::ffdim, 13);
-    genmat(s3_args. dense_bias, 1, CFG::ffdim, 71);
-
-    /********** STAGE 4 ARGS ***********/
     stage4_args_t s4_args;
     s4_args.skip_conn = s3_args.fc_in;
-    s4_args.dense_weight_t = new int8_t[CFG::ffdim * CFG::dmodel];
-    s4_args.norm_bias = new int16_t[CFG::dmodel];
-    s4_args.norm_weight = new int16_t[CFG::dmodel];
-    s4_args.dense_bias = new int32_t[CFG::dmodel];
-    s4_args.dense_out = new int8_t[CFG::seqlen * CFG::dmodel];
+    s4_args.dense_weight_t = stage4_dense_out.data();
+    s4_args.norm_bias = stage4_norm_bias.data();
+    s4_args.norm_weight = stage4_norm_weight.data();
+    s4_args.dense_bias = stage4_dense_bias.data();
+    s4_args.dense_out = new int8_t[CFG::seqlen*CFG::dmodel];
     s4_args.M_residual = 2;
     s4_args.M_dense_acc = 1;
     s4_args.M_stage4 = 1;
@@ -92,29 +93,10 @@ int main(int argc, char **argv) {
     genmat(s4_args.norm_weight, CFG::dmodel, 1, 23);
     genmat(s4_args.norm_bias, CFG::dmodel, 1, 11);
 
-
-
-
-	std::vector<DTYPE, aligned_allocator<DTYPE>> conv_in(CFG::in_channels*CFG::in_size*CFG::in_size);
-	std::vector<DTYPE, aligned_allocator<DTYPE>> conv_bias(CFG::out_channels);
-	std::vector<DTYPE, aligned_allocator<DTYPE>> conv_kernel(CFG::out_channels*CFG::in_channels*CFG::kernel_size*CFG::kernel_size);
-	std::vector<DTYPE, aligned_allocator<DTYPE>> conv_out_hw(CFG::out_channels*CFG::out_size*CFG::out_size);
-	std::vector<DTYPE, aligned_allocator<DTYPE>> conv_out_sw(CFG::out_channels*CFG::out_size*CFG::out_size);
-
-	init_mat(conv_in, CFG::in_channels*CFG::in_size*CFG::in_size, 1);
-    init_mat(conv_kernel,CFG::out_channels*CFG::in_channels*CFG::kernel_size*CFG::kernel_size, 1);
-    init_mat(conv_bias, CFG::out_channels, 1);
-    conv_bias[0] = 0;
-
-    printmat(conv_in, CFG::in_size, CFG::in_channels, "conv_in");
-    printmat(conv_bias, 1, CFG::out_channels, "conv_bias");
-    printmat(conv_kernel, CFG::kernel_size, CFG::in_channels*CFG::out_channels, "conv_kernel");
-    printmat(conv_out_hw, CFG::out_size, CFG::out_channels, "conv_out_hw");
-    printmat(conv_out_sw, CFG::out_size, CFG::out_channels, "conv_out_sw");
-
-    // Generate SW ground truth
-    // TODO: Should we compare against 
-   TransposeConv2d_arr(conv_in.data(), conv_bias.data(), conv_kernel.data(), conv_out_sw.data()); 
+    /********** Ground Truth *********/
+    auto gt_out = new int8_t[CFG::seqlen*CFG::dmodel];
+    fpga2_gt(s3_args, s4_args);
+    memcpy(gt_out, s4_args.dense_out, CFG::seqlen*CFG::dmodel*sizeof(int8_t));
 
 
   // OPENCL HOST CODE AREA START
@@ -139,7 +121,7 @@ int main(int argc, char **argv) {
       std::cout << "Failed to program device[" << i << "] with xclbin file!\n";
     } else {
       std::cout << "Device[" << i << "]: program successful!\n";
-      OCL_CHECK(err, krnl = cl::Kernel(program, "TransposeConv2d_kernel", &err));
+      OCL_CHECK(err, krnl = cl::Kernel(program, "fpga2", &err));
       valid_device++;
       break; // we break because we found a valid device
     }
@@ -152,22 +134,40 @@ int main(int argc, char **argv) {
   // Allocate Buffer in Global Memory
   // Buffers are allocated using CL_MEM_USE_HOST_PTR for efficient memory and
   // Device-to-host communication
-  OCL_CHECK(err, cl::Buffer buffer_in(
+  OCL_CHECK(err, cl::Buffer buffer_stage3_fc_in(
                      context, CL_MEM_USE_HOST_PTR | CL_MEM_READ_ONLY,
-                     sizeof(DTYPE)*CFG::in_channels*CFG::in_size*CFG::in_size,
-                     conv_in.data(), &err));
-  OCL_CHECK(err, cl::Buffer buffer_bias(
+                     sizeof(stage3_fc_in.value_type)*stage3_fc_in.size(),
+                     stage3_fc_in.data(), &err));
+
+  OCL_CHECK(err, cl::Buffer buffer_stage3_dense_weight_t(
                      context, CL_MEM_USE_HOST_PTR | CL_MEM_READ_ONLY,
-                     sizeof(DTYPE)*CFG::out_channels,
-                     conv_bias.data(), &err));
-  OCL_CHECK(err, cl::Buffer buffer_conv_kernel(
+                     sizeof(stage3_dense_weight_t.value_type)*stage3_dense_weight_t.size(),
+                     stage3_dense_weight_t.data(), &err));
+
+  OCL_CHECK(err, cl::Buffer buffer_stage3_dense_weight_t(
                      context, CL_MEM_USE_HOST_PTR | CL_MEM_READ_ONLY,
-                     sizeof(DTYPE)*CFG::out_channels*CFG::in_channels*CFG::kernel_size*CFG::kernel_size,
-                     conv_kernel.data(), &err));
-  OCL_CHECK(err, cl::Buffer buffer_out(
-                     context, CL_MEM_USE_HOST_PTR ,
-                     sizeof(DTYPE)*CFG::out_channels*CFG::out_size*CFG::out_size,
-                     conv_out_hw.data(), &err));
+                     sizeof(stage3_dense_weight_t.value_type)*stage3_dense_weight_t.size(),
+                     stage3_dense_weight_t.data(), &err));
+
+  OCL_CHECK(err, cl::Buffer buffer_stage3_dense_weight_t(
+                     context, CL_MEM_USE_HOST_PTR | CL_MEM_READ_ONLY,
+                     sizeof(stage3_dense_weight_t.value_type)*stage3_dense_weight_t.size(),
+                     stage3_dense_weight_t.data(), &err));
+
+  OCL_CHECK(err, cl::Buffer buffer_stage3_dense_weight_t(
+                     context, CL_MEM_USE_HOST_PTR | CL_MEM_READ_ONLY,
+                     sizeof(stage3_dense_weight_t.value_type)*stage3_dense_weight_t.size(),
+                     stage3_dense_weight_t.data(), &err));
+
+  OCL_CHECK(err, cl::Buffer buffer_stage3_dense_weight_t(
+                     context, CL_MEM_USE_HOST_PTR | CL_MEM_READ_ONLY,
+                     sizeof(stage3_dense_weight_t.value_type)*stage3_dense_weight_t.size(),
+                     stage3_dense_weight_t.data(), &err));
+
+
+
+
+
 
   OCL_CHECK(err, err = krnl.setArg(0, buffer_in));
   OCL_CHECK(err, err = krnl.setArg(1, buffer_bias));
