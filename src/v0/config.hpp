@@ -1,5 +1,6 @@
 #pragma once
-
+extern "C"
+{
 namespace CFG
 {
     constexpr int seqlen = 128;
@@ -9,3 +10,4 @@ namespace CFG
     constexpr int ffdim = 3072;
     constexpr float eps = 1e-5;
 } // namespace CONFIG
+}

@@ -76,7 +76,7 @@ void requantize2(int32_t* in, int8_t* out, const int rows, const int cols, float
     }
 }
 
-
+extern "C" {
 void stage3_gt(int8_t* fc_in, int8_t* dense_weight_t, int32_t* dense_bias, int8_t* dense_out, float dense_acc_scale, float M_stage3) {
     /*
     High level: inputs are int8_t, output is int8_t. The linear layer goes from int8 -> int32. then, apply GeLU (which takes scaling_factor 
@@ -94,9 +94,11 @@ void stage3_gt(int8_t* fc_in, int8_t* dense_weight_t, int32_t* dense_bias, int8_
     linear_sw3(fc_in, dense_weight_t, dense_bias, dense_temp, CFG::seqlen, CFG::ffdim, CFG::dmodel);
     gelu_sw(dense_temp, gelu_temp, CFG::seqlen, CFG::ffdim, dense_acc_scale);
     requantize2(gelu_temp, dense_out, CFG::seqlen, CFG::ffdim, M_stage3);
-
+    
+    delete [] dense_temp;
+    delete [] gelu_temp;
 }
-
+}
 /**** ^^ Ground Truth Above ^^ ****/
 
 int8_t gelu_fused(int32_t gelu_in, float scaling_factor, float M_stage3, int b_int, int c_int, int shift_int)
@@ -157,6 +159,7 @@ void linear_fused(int8_t *A, int8_t *B, int32_t *bias, int8_t *out, const int N,
     }
 }
 
+extern "C" {
 void stage3(int8_t *fc_in, int8_t *dense_weight_t, int32_t *dense_bias, int8_t *dense_out, float dense_acc_scale, float M_stage3)
 {
     /*
@@ -168,4 +171,5 @@ void stage3(int8_t *fc_in, int8_t *dense_weight_t, int32_t *dense_bias, int8_t *
     */
 
     linear_fused(fc_in, dense_weight_t, dense_bias, dense_out, CFG::seqlen, CFG::ffdim, CFG::dmodel, dense_acc_scale, M_stage3);
+}
 }

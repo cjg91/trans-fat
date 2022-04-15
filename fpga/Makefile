@@ -112,7 +112,17 @@ ifneq ($(TARGET), hw)
 	VPP_FLAGS += -g
 endif
 
-
+STAGE_SRC := '../src/v$(VERSION)/stages/pipeline.cpp'
+STAGE_SRC += '../src/v$(VERSION)/stages/stage1/stage1.cpp' 
+STAGE_SRC += '../src/v$(VERSION)/stages/stage2/stage2.cpp' 
+STAGE_SRC += '../src/v$(VERSION)/stages/stage3/stage3.cpp' 
+STAGE_SRC += '../src/v$(VERSION)/stages/stage4/stage4.cpp' 
+STAGE_HDRS := ../src/v$(VERSION)/config.hpp 
+STAGE_HDRS += ../src/v$(VERSION)/stages/pipeline.hpp 
+STAGE_HDRS += ../src/v$(VERSION)/stages/stage1/stage1.hpp
+STAGE_HDRS += ../src/v$(VERSION)/stages/stage2/stage2.hpp
+STAGE_HDRS += ../src/v$(VERSION)/stages/stage3/stage3.hpp
+STAGE_HDRS += ../src/v$(VERSION)/stages/stage4/stage4.hpp
 
 EXECUTABLE = ./host_$(PART)
 EMCONFIG_DIR = $(TEMP_DIR)
@@ -138,13 +148,13 @@ build: check-vitis $(BINARY_CONTAINERS)
 xclbin: build
 
 ############################## Setting Rules for Binary Containers (Building Kernels) ##############################
-$(TEMP_DIR)/$(PART).xo: ../src/v$(VERSION)/stages/pipeline.cpp
+$(TEMP_DIR)/$(PART).xo: ../src/v$(VERSION)/stages/pipeline.cpp $(STAGE_HDRS)
 	mkdir -p $(TEMP_DIR)
-	$(VPP) $(VPP_FLAGS) -c -k $(PART) --temp_dir $(TEMP_DIR)  -I'$(<D)' -o'$@' '$<'
+	$(VPP) $(VPP_FLAGS) -c -k $(PART) --temp_dir $(TEMP_DIR)  -I'../src/v$(VERSION)' -o'$@' '$<' $(STAGE_SRC)
 $(BUILD_DIR)/$(PART).xclbin: $(BINARY_CONTAINER_vadd_OBJS)
 	mkdir -p $(BUILD_DIR)
 ifeq ($(HOST_ARCH), x86)
-	$(VPP) $(VPP_FLAGS) -l $(VPP_LDFLAGS) --temp_dir $(TEMP_DIR)  -o'$(BUILD_DIR)/$(PART).link.xclbin' $(+)
+	$(VPP) $(VPP_FLAGS) -l $(VPP_LDFLAGS) --temp_dir $(TEMP_DIR) -I'../src/v$(VERSION)' -o'$(BUILD_DIR)/$(PART).link.xclbin' $(+)
 	$(VPP) -p $(BUILD_DIR)/$(PART).link.xclbin -t $(TARGET) --platform $(DEVICE) --package.out_dir $(PACKAGE_OUT) -o $(BUILD_DIR)/$(PART).xclbin
 else
 	$(VPP) $(VPP_FLAGS) -l $(VPP_LDFLAGS) --temp_dir $(TEMP_DIR) -o'$(BUILD_DIR)/$(PART).xclbin' $(+)
@@ -188,6 +198,12 @@ ifeq ($(HOST_ARCH), x86)
 else
 	$(ECHO) "Please copy the content of sd_card folder and data to an SD Card and run on the board"
 endif
+endif
+
+############################## Preparing sdcard ##############################
+sd_card: $(BINARY_CONTAINERS) $(EXECUTABLE) gen_run_app
+ifneq ($(HOST_ARCH), x86)
+		$(VPP) -p $(BUILD_DIR)/$(part).xclbin -t $(TARGET) --platform $(DEVICE) --package.out_dir $(PACKAGE_OUT) --package.rootfs $(EDGE_COMMON_SW)/rootfs.ext4 --package.sd_file $(SD_IMAGE_FILE) --package.sd_file xrt.ini --package.sd_file $(RUN_APP_SCRIPT) --package.sd_file $(EXECUTABLE) -o $(PART).xclbin
 endif
 
 

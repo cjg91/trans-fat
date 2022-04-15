@@ -6,7 +6,7 @@ header_files = pipeline.hpp
 all: pipeline_test
 
 pipeline_test: $(src_files) $(header_files)
-	g++ -Wall --std=c++14 -o pipeline_test $(src_files)
+	g++ -Wall --std=c++11 -o pipeline_test $(src_files)
 
 .PHONY: clean
 

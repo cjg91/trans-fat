@@ -111,7 +111,7 @@ void layernorm_sw(int16_t* act, int16_t* y, int16_t* norm_weight, int16_t* norm_
    delete [] stdev;
     
 }
-
+extern "C" {
 void stage4_gt(int8_t *fc_in, int8_t *skip_conn, float M_residual, int8_t *dense_weight_t, int32_t *dense_bias, int8_t *dense_out, float M_dense_acc, int16_t *norm_weight, int16_t *norm_bias, float M_stage4)
 {
     int32_t* fc_out = new int32_t[CFG::seqlen * CFG::dmodel];
@@ -131,7 +131,7 @@ void stage4_gt(int8_t *fc_in, int8_t *skip_conn, float M_residual, int8_t *dense
     delete [] ln_fc_in;
     delete [] ln_out;
 }
-
+}
 
 /**** ^^ SW Ground Truth Above ^^ ****/
 
@@ -183,6 +183,8 @@ void layernorm_fused(int16_t *act, int8_t *out, int16_t *norm_weight, int16_t *n
 
 }
 
+extern "C"
+{
 void stage4(int8_t *fc_in, int8_t *skip_conn, float M_residual, int8_t *dense_weight_t, int32_t *dense_bias, int8_t *dense_out, float M_dense_acc, int16_t *norm_weight, int16_t *norm_bias, float M_stage4)
 {
     int16_t fc_ln_buff[CFG::seqlen][CFG::dmodel];
@@ -191,4 +193,5 @@ void stage4(int8_t *fc_in, int8_t *skip_conn, float M_residual, int8_t *dense_we
     linear_fused(fc_in, dense_weight_t, dense_bias, buff, CFG::seqlen, CFG::dmodel, CFG::ffdim, skip_conn, M_dense_acc, M_residual);
     layernorm_fused(buff, dense_out, norm_weight, norm_bias, M_residual, M_stage4);
 
+}
 }
