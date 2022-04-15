@@ -1,7 +1,7 @@
 #include <cstdint>
 #include <iostream>
 #include <cmath>
-#include "../../config.hpp"
+#include "config.hpp"
 
 /*
     A: NxK
@@ -178,7 +178,6 @@ void layernorm_sw2(int16_t* act, int16_t* y, int16_t* norm_weight, int16_t* norm
    delete [] stdev;
 }
     
-
 /**
  * 
  * What is transpose?
@@ -265,6 +264,7 @@ void attention_values(int8_t* probs, int8_t* value, int32_t* attn_out, const int
    }
 }
 
+extern "C" {
 void stage2_gt(int8_t* query_in, int8_t* key_in, int8_t* value_in, int8_t* skip_in, int8_t* stage2_out, int8_t* dense_weight_t, int32_t* dense_bias, float M_attention_probs, float M_attention_out, float M_dense_out, float M_residual, int16_t* norm_weight, int16_t* norm_bias, float M_stage2) {
 
     auto attn_score = new int32_t[CFG::nhead*CFG::seqlen*CFG::seqlen];
@@ -298,7 +298,7 @@ void stage2_gt(int8_t* query_in, int8_t* key_in, int8_t* value_in, int8_t* skip_
     delete[] ln_out;
 
 }
-
+}
 
 void attention_scores_fused(int8_t* query, int8_t* key, int8_t* out, const int seqlen, const int nhead, const int dhead, float M_attention_probs) {
 
@@ -400,7 +400,7 @@ void layernorm_fused2(int16_t *act, int8_t *out, int16_t *norm_weight, int16_t *
 
 }
 
-
+extern "C" {
 void stage2(int8_t* query_in, int8_t* key_in, int8_t* value_in, int8_t* skip_in, int8_t* stage2_out, int8_t* dense_weight_t, int32_t* dense_bias, float M_attention_probs, float M_attention_out, float M_dense_out, float M_residual, int16_t* norm_weight, int16_t* norm_bias, float M_stage2) {
     int8_t att_scores_buff[CFG::nhead*CFG::seqlen*CFG::seqlen];
     int8_t att_out_buff[CFG::seqlen*CFG::dmodel];
@@ -414,4 +414,5 @@ void stage2(int8_t* query_in, int8_t* key_in, int8_t* value_in, int8_t* skip_in,
     // layernorm, requantize
     layernorm_fused2(lin_buff, stage2_out, norm_weight, norm_bias, M_residual, M_stage2);
 
+}
 }

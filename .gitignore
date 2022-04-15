@@ -2,3 +2,8 @@
 __pycache__/
 state_dict.npz
 .vscode/
+
+_x.*
+build_dir.*
+v++*
+*.log

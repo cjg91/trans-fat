@@ -1,5 +1,5 @@
 #include "stage3.hpp"
-#include "../../config.hpp"
+#include "config.hpp"
 #include <iostream>
 
 void printmat(int8_t* A, const int M, const int N) {

@@ -1,6 +1,7 @@
 #pragma once
 #include <cstdint>
-
+extern "C"
+{
 typedef struct stage1_args_t
 {
     int8_t *in, *query_weight_t, *key_weight_t, *value_weight_t;
@@ -36,3 +37,4 @@ void fpga1(stage1_args_t s1_args, stage2_args_t s2_args);
 
 void fpga2_gt(stage3_args_t s3_args, stage4_args_t s4_args);
 void fpga2(stage3_args_t s3_args, stage4_args_t s4_args);
+}

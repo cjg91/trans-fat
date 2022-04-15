@@ -1,5 +1,5 @@
 #include "stage2.hpp"
-#include "../../config.hpp"
+#include "config.hpp"
 #include <iostream>
 
 template<typename T>

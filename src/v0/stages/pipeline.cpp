@@ -1,11 +1,13 @@
-#include "stage1/stage1.hpp"
-#include "stage2/stage2.hpp"
-#include "stage3/stage3.hpp"
-#include "stage4/stage4.hpp"
-#include "../config.hpp"
+#include "stage1.hpp"
+#include "stage2.hpp"
+#include "stage3.hpp"
+#include "stage4.hpp"
+#include "config.hpp"
 #include "pipeline.hpp"
 #include <stdio.h>
 
+extern "C"
+{
 void fpga1_gt(stage1_args_t s1_args, stage2_args_t s2_args)
 {
     int8_t *q = new int8_t[CFG::seqlen * CFG::dmodel];
@@ -60,4 +62,5 @@ void fpga2(stage3_args_t s3_args, stage4_args_t s4_args)
     stage3(s3_args.fc_in, s3_args.dense_weight_t, s3_args.dense_bias, buff, s3_args.dense_acc_scale, s3_args.M_stage3);
     stage4(buff, s4_args.skip_conn, s4_args.M_residual, s4_args.dense_weight_t, s4_args.dense_bias, s4_args.dense_out,
               s4_args.M_dense_acc, s4_args.norm_weight, s4_args.norm_bias, s4_args.M_stage4);
+}
 }
