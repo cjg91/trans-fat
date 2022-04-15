@@ -1,7 +1,7 @@
 #include "stage4.hpp"
 #include <math.h>
 #include <stdio.h>
-#include "../../config.hpp"
+#include "config.hpp"
 
 void linear_sw4(int8_t* A, int8_t* B, int32_t* bias, int32_t* out, const int N, const int M, const int K) {
     

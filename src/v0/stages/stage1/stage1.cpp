@@ -1,6 +1,6 @@
 #include <cstdint>
 #include <iostream>
-#include "../../config.hpp"
+#include "config.hpp"
 
 /*
     A: NxK

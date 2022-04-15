@@ -124,6 +124,14 @@ STAGE_HDRS += ../src/v$(VERSION)/stages/stage2/stage2.hpp
 STAGE_HDRS += ../src/v$(VERSION)/stages/stage3/stage3.hpp
 STAGE_HDRS += ../src/v$(VERSION)/stages/stage4/stage4.hpp
 
+STAGE_INCL := -I'../src/v$(VERSION)/'
+STAGE_INCL += -I'../src/v$(VERSION)/stages/' 
+STAGE_INCL += -I'../src/v$(VERSION)/stages/stage1/' 
+STAGE_INCL += -I'../src/v$(VERSION)/stages/stage2/' 
+STAGE_INCL += -I'../src/v$(VERSION)/stages/stage3/' 
+STAGE_INCL += -I'../src/v$(VERSION)/stages/stage4/' 
+
+
 EXECUTABLE = ./host_$(PART)
 EMCONFIG_DIR = $(TEMP_DIR)
 EMU_DIR = $(SDCARD)/data/emulation
@@ -150,11 +158,11 @@ xclbin: build
 ############################## Setting Rules for Binary Containers (Building Kernels) ##############################
 $(TEMP_DIR)/$(PART).xo: ../src/v$(VERSION)/stages/pipeline.cpp $(STAGE_HDRS)
 	mkdir -p $(TEMP_DIR)
-	$(VPP) $(VPP_FLAGS) -c -k $(PART) --temp_dir $(TEMP_DIR)  -I'../src/v$(VERSION)' -o'$@' '$<' $(STAGE_SRC)
+	$(VPP) $(VPP_FLAGS) -c -k $(PART) --temp_dir $(TEMP_DIR) $(STAGE_INCL)  -o'$@' '$<' $(STAGE_SRC)
 $(BUILD_DIR)/$(PART).xclbin: $(BINARY_CONTAINER_vadd_OBJS)
 	mkdir -p $(BUILD_DIR)
 ifeq ($(HOST_ARCH), x86)
-	$(VPP) $(VPP_FLAGS) -l $(VPP_LDFLAGS) --temp_dir $(TEMP_DIR) -I'../src/v$(VERSION)' -o'$(BUILD_DIR)/$(PART).link.xclbin' $(+)
+	$(VPP) $(VPP_FLAGS) -l $(VPP_LDFLAGS) --temp_dir $(TEMP_DIR) $(STAGE_INCL) -o'$(BUILD_DIR)/$(PART).link.xclbin' $(+)
 	$(VPP) -p $(BUILD_DIR)/$(PART).link.xclbin -t $(TARGET) --platform $(DEVICE) --package.out_dir $(PACKAGE_OUT) -o $(BUILD_DIR)/$(PART).xclbin
 else
 	$(VPP) $(VPP_FLAGS) -l $(VPP_LDFLAGS) --temp_dir $(TEMP_DIR) -o'$(BUILD_DIR)/$(PART).xclbin' $(+)

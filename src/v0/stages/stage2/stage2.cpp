@@ -1,7 +1,7 @@
 #include <cstdint>
 #include <iostream>
 #include <cmath>
-#include "../../config.hpp"
+#include "config.hpp"
 
 /*
     A: NxK
@@ -178,7 +178,6 @@ void layernorm_sw2(int16_t* act, int16_t* y, int16_t* norm_weight, int16_t* norm
    delete [] stdev;
 }
     
-
 /**
  * 
  * What is transpose?

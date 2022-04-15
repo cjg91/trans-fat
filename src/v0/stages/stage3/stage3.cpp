@@ -1,7 +1,7 @@
 #include <cstdint>
 #include <algorithm>
 #include <stdio.h>
-#include "../../config.hpp"
+#include "config.hpp"
 
 /*
     A: NxK
