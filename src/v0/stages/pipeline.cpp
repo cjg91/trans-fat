@@ -54,13 +54,12 @@ void fpga2_gt(stage3_args_t s3_args, stage4_args_t s4_args)
     delete [] fc3_to_fc4_buff;
 }
 
-void fpga2(stage3_args_t s3_args, stage4_args_t s4_args)
+void fpga2(int8_t *stage3_fc_in, int8_t* stage3_dense_weight_t, int32_t *stage3_dense_bias, float stage3_dense_acc_scale, float M_stage3, 
+           int8_t *fc3_to_fc4_buff, int8_t *stage4_dense_weight_t, int8_t *stage4_dense_out, int32_t *stage4_dense_bias, int16_t* stage4_norm_weight,
+           int16_t *stage4_norm_bias, float stage4_M_residual, float stage4_M_dense_acc, float M_stage4)
 {
-    int8_t fc3_to_fc4_buff[CFG::seqlen][CFG::ffdim];
-    int8_t *buff = &fc3_to_fc4_buff[0][0];
-
-    stage3(s3_args.fc_in, s3_args.dense_weight_t, s3_args.dense_bias, buff, s3_args.dense_acc_scale, s3_args.M_stage3);
-    stage4(buff, s4_args.skip_conn, s4_args.M_residual, s4_args.dense_weight_t, s4_args.dense_bias, s4_args.dense_out,
-              s4_args.M_dense_acc, s4_args.norm_weight, s4_args.norm_bias, s4_args.M_stage4);
+    stage3(stage3_fc_in, stage3_dense_weight_t, stage3_dense_bias, fc3_to_fc4_buff, stage3_dense_acc_scale, M_stage3);
+    stage4(fc3_to_fc4_buff, stage3_fc_in, stage4_M_residual, stage4_dense_weight_t, stage4_dense_bias, stage4_dense_out,
+              stage4_M_dense_acc, stage4_norm_weight, stage4_norm_bias, M_stage4);
 }
 }

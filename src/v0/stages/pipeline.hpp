@@ -36,5 +36,7 @@ void fpga1_gt(stage1_args_t s1_args, stage2_args_t s2_args);
 void fpga1(stage1_args_t s1_args, stage2_args_t s2_args);
 
 void fpga2_gt(stage3_args_t s3_args, stage4_args_t s4_args);
-void fpga2(stage3_args_t s3_args, stage4_args_t s4_args);
+void fpga2(int8_t *stage3_fc_in, int8_t* stage3_dense_weight_t, int32_t *stage3_dense_bias, float stage3_dense_acc_scale, float M_stage3, 
+           int8_t *fc3_to_fc4_buff, int8_t *stage4_dense_weight_t, int8_t *stage4_dense_out, int32_t *stage4_dense_bias, int16_t* stage4_norm_weight,
+           int16_t *stage4_norm_bias, float stage4_M_residual, float stage4_M_dense_acc, float M_stage4);
 }
