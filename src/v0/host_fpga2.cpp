@@ -100,7 +100,7 @@ int main(int argc, char **argv) {
     fpga2_gt(s3_args, s4_args);
     memcpy(stage4_out_gt, s4_args.dense_out, sizeof(int8_t)*CFG::seqlen*CFG::dmodel);
 
-    printmat(stage4_out_gt, CFG::seqlen, CFG::dmodel);
+    //printmat(stage4_out_gt, CFG::seqlen, CFG::dmodel);
 
 
   // OPENCL HOST CODE AREA START
