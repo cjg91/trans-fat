@@ -1,6 +1,6 @@
 #pragma once
 
-#include <cstdint>
+#include <sys/types.h>
 
 extern "C"
 {

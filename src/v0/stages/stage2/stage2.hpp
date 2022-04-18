@@ -1,4 +1,5 @@
-#include <cstdint>
+#pragma once
+#include <sys/types.h>
 
 
 void attention_scores(int8_t* query, int8_t* key, int32_t* out, const int seqlen, const int nhead, const int dhead);

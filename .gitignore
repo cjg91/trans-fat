@@ -7,3 +7,5 @@ _x.*
 build_dir.*
 v++*
 *.log
+
+.run/

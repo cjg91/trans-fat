@@ -3,11 +3,11 @@ extern "C"
 {
 namespace CFG
 {
-    constexpr int seqlen = 128;
-    constexpr int nhead = 12;
-    constexpr int dhead = 64;
-    constexpr int dmodel = 768;
-    constexpr int ffdim = 3072;
-    constexpr float eps = 1e-5;
+    const int seqlen = 128;
+    const int nhead = 12;
+    const int dhead = 64;
+    const int dmodel = 768;
+    const int ffdim = 3072;
+    const float eps = 1e-5;
 } // namespace CONFIG
 }

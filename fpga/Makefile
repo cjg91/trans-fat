@@ -98,7 +98,7 @@ endif
 CXXFLAGS += -I$(XF_PROJ_ROOT)/common/includes/xcl2
 HOST_SRCS += $(XF_PROJ_ROOT)/common/includes/xcl2/xcl2.cpp ../src/v$(VERSION)/host_$(PART).cpp
 # Host compiler global settings
-CXXFLAGS += -fmessage-length=0
+CXXFLAGS += -fmessage-length=0 
 LDFLAGS += -lrt -lstdc++ 
 
 ifneq ($(HOST_ARCH), x86)
@@ -170,7 +170,7 @@ endif
 
 ############################## Setting Rules for Host (Building Host Executable) ##############################
 $(EXECUTABLE): $(HOST_SRCS) | check-xrt
-		$(CXX) -o $@ $^ $(CXXFLAGS) $(LDFLAGS)
+		$(CXX) -o $@ $^ $(CXXFLAGS) $(LDFLAGS) $(STAGE_INCL)  $(STAGE_SRC)
 
 emconfig:$(EMCONFIG_DIR)/emconfig.json
 $(EMCONFIG_DIR)/emconfig.json:

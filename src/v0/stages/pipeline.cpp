@@ -6,8 +6,7 @@
 #include "pipeline.hpp"
 #include <stdio.h>
 
-extern "C"
-{
+
 void fpga1_gt(stage1_args_t s1_args, stage2_args_t s2_args)
 {
     int8_t *q = new int8_t[CFG::seqlen * CFG::dmodel];
@@ -28,6 +27,21 @@ void fpga1_gt(stage1_args_t s1_args, stage2_args_t s2_args)
 }
 
 
+
+void fpga2_gt(stage3_args_t s3_args, stage4_args_t s4_args)
+{
+    int8_t *fc3_to_fc4_buff = new int8_t[CFG::seqlen * CFG::ffdim];
+    
+    stage3_gt(s3_args.fc_in, s3_args.dense_weight_t, s3_args.dense_bias, fc3_to_fc4_buff, s3_args.dense_acc_scale, s3_args.M_stage3);
+    
+    stage4_gt(fc3_to_fc4_buff, s4_args.skip_conn, s4_args.M_residual, s4_args.dense_weight_t, s4_args.dense_bias, s4_args.dense_out,
+              s4_args.M_dense_acc, s4_args.norm_weight, s4_args.norm_bias, s4_args.M_stage4);
+              
+    delete [] fc3_to_fc4_buff;
+}
+
+extern "C" {
+
 void fpga1(stage1_args_t s1_args, stage2_args_t s2_args)
 {
     int8_t q[CFG::seqlen * CFG::dmodel];
@@ -40,18 +54,6 @@ void fpga1(stage1_args_t s1_args, stage2_args_t s2_args)
     stage2(q, k, v, s1_args.in, s2_args.out, s2_args.dense_weight_t, s2_args.dense_bias, s2_args.M_attention_probs, s2_args.M_attention_out,
               s2_args.M_dense_out, s2_args.M_residual, s2_args.norm_weight, s2_args.norm_bias, s2_args.M_stage2);
     
-}
-
-void fpga2_gt(stage3_args_t s3_args, stage4_args_t s4_args)
-{
-    int8_t *fc3_to_fc4_buff = new int8_t[CFG::seqlen * CFG::ffdim];
-    
-    stage3_gt(s3_args.fc_in, s3_args.dense_weight_t, s3_args.dense_bias, fc3_to_fc4_buff, s3_args.dense_acc_scale, s3_args.M_stage3);
-    
-    stage4_gt(fc3_to_fc4_buff, s4_args.skip_conn, s4_args.M_residual, s4_args.dense_weight_t, s4_args.dense_bias, s4_args.dense_out,
-              s4_args.M_dense_acc, s4_args.norm_weight, s4_args.norm_bias, s4_args.M_stage4);
-              
-    delete [] fc3_to_fc4_buff;
 }
 
 void fpga2(int8_t *stage3_fc_in, int8_t* stage3_dense_weight_t, int32_t *stage3_dense_bias, float stage3_dense_acc_scale, float M_stage3, 
