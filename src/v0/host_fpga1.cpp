@@ -98,7 +98,7 @@ int main(int argc, char **argv) {
     auto stage2_out_gt = new int8_t[CFG::seqlen*CFG::dmodel];
 
     stage2_args_t s2_args;
-    s2_args.out = stage2_out.data();
+    s2_args.out = stage2_out_gt;
     s2_args.dense_weight_t = stage2_dense_weight_t.data();
     s2_args.dense_bias = stage2_dense_bias.data();
     s2_args.norm_weight = stage2_norm_weight.data();
@@ -116,7 +116,6 @@ int main(int argc, char **argv) {
 
     /********* SW Ground Truth *********/
     fpga1_gt(s1_args, s2_args);
-    memcpy(stage2_out_gt, stage2_out.data(), CFG::seqlen*CFG::dmodel);
 
   // OPENCL HOST CODE AREA START
   // get_xil_devices() is a utility API which will find the xilinx
