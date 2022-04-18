@@ -89,6 +89,8 @@ int main()
     s3_args.dense_acc_scale = 0.004;
     s3_args.M_stage3 = 0.3;
 
+    auto fc3_to_fc4_buff = new int8_t[CFG::seqlen * CFG::ffdim];
+
     genmat(s3_args.dense_weight_t, CFG::dmodel, CFG::ffdim, 13);
     genmat(s3_args. dense_bias, 1, CFG::ffdim, 71);
 
@@ -111,7 +113,9 @@ int main()
 
     /*********************** run fpga layer *********************/
     fpga1(s1_args, s2_args);
-    fpga2(s3_args, s4_args);
+    fpga2(s3_args.fc_in, s3_args.dense_weight_t, s3_args.dense_bias, s3_args.dense_acc_scale, s3_args.M_stage3,
+          fc3_to_fc4_buff, s4_args.dense_weight_t, s4_args.dense_out, s4_args.dense_bias, s4_args.norm_weight, s4_args.norm_bias,
+          s4_args.M_residual, s4_args.M_dense_acc, s4_args.M_stage4);
 
     // save layer output for comparison
     int8_t *test_out = new int8_t[CFG::seqlen * CFG::dmodel];
