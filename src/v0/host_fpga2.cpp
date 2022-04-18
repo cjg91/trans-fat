@@ -5,6 +5,8 @@
 #include <iostream>
 #include "pipeline.hpp"
 #include "config.hpp"
+#include <stdlib.h>
+#include <time.h>
 
 void printmat(int8_t *A, const int M, const int N)
 {
@@ -99,6 +101,13 @@ int main(int argc, char **argv) {
     // Generate SW ground truth
     fpga2_gt(s3_args, s4_args);
     memcpy(stage4_out_gt, s4_args.dense_out, sizeof(int8_t)*CFG::seqlen*CFG::dmodel);
+   
+    // scramble output as sanity check that fpga is actually chaning memory 
+    srand(time(NULL));
+    for (int i = 0; i < CFG::seqlen*CFG::dmodel; ++i)
+    {
+        s4_args.dense_out[i] = rand() % 32767;
+    }
 
     //printmat(stage4_out_gt, CFG::seqlen, CFG::dmodel);
 

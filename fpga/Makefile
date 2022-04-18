@@ -71,8 +71,8 @@ XSA :=
 ifneq ($(DEVICE), )
 XSA := $(call device2xsa, $(DEVICE))
 endif
-TEMP_DIR := ./_x.$(TARGET).$(XSA)
-BUILD_DIR := ./build_dir.$(TARGET).$(XSA)
+TEMP_DIR := ./_x.$(TARGET).$(PART).v$(VERSION)
+BUILD_DIR := ./build_dir.$(TARGET).$(PART).v$(VERSION)
 
 # SoC variables
 RUN_APP_SCRIPT = ./run_app.sh
@@ -136,6 +136,8 @@ EXECUTABLE = ./host_$(PART)
 EMCONFIG_DIR = $(TEMP_DIR)
 EMU_DIR = $(SDCARD)/data/emulation
 
+RES_DIR := ../builds/v$(VERSION).$(PART)
+
 ############################## Declaring Binary Containers ##############################
 BINARY_CONTAINERS += $(BUILD_DIR)/$(PART).xclbin
 BINARY_CONTAINER_vadd_OBJS += $(TEMP_DIR)/$(PART).xo
@@ -145,6 +147,16 @@ CP = cp -rf
 
 .PHONY: all clean cleanall docs emconfig
 all: check-devices $(EXECUTABLE) $(BINARY_CONTAINERS) emconfig sd_card
+ifeq ($(TARGET),hw)
+	mkdir -p $(RES_DIR)
+	cp $(EXECUTABLE) $(RES_DIR)
+	cp $(BUILD_DIR)/$(PART).xclbin $(RES_DIR)
+	cp $(TEMP_DIR)/reports/link/imp/impl_1_kernel_util_routed.rpt $(RES_DIR) 
+	cp $(TEMP_DIR)/reports/link/imp/impl_1_xilinx_u200_xdma_201830_2_bb_locked_timing_summary_routed.rpt $(RES_DIR) 
+	cp $(TEMP_DIR)/reports/$(PART)/hls_reports/$(PART)_csynth.rpt $(RES_DIR)
+	cp $(TEMP_DIR)/logs/$(PART)/$(PART)_vitis_hls.log $(RES_DIR)
+endif
+
 
 .PHONY: host
 host: $(EXECUTABLE)
