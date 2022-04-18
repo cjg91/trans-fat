@@ -42,17 +42,18 @@ void fpga2_gt(stage3_args_t s3_args, stage4_args_t s4_args)
 
 extern "C" {
 
-void fpga1(stage1_args_t s1_args, stage2_args_t s2_args)
+void fpga1(int8_t *stage1_in, int8_t *query, int8_t *key, int8_t *value, int8_t *stage1_query_weight_t, int32_t *stage1_query_bias,
+           int8_t *stage1_key_weight_t, int32_t *stage1_key_bias, int8_t *stage1_value_weight_t, int32_t *stage1_value_bias, float stage1_M_query, 
+           float stage1_M_key, float stage1_M_value, int8_t *stage2_out, int8_t *stage2_dense_weight_t, int32_t *stage2_dense_bias, 
+           float stage2_M_attention_probs, float stage2_M_attention_out, float stage2_M_dense_out, float stage2_M_residual, 
+           int16_t *stage2_norm_weight, int16_t *stage2_norm_bias, float M_stage2)
 {
-    int8_t q[CFG::seqlen * CFG::dmodel];
-    int8_t k[CFG::seqlen * CFG::dmodel];
-    int8_t v[CFG::seqlen * CFG::dmodel];
 
-    stage1(s1_args.in, q, k, v, s1_args.query_weight_t, s1_args.query_bias, s1_args.key_weight_t, s1_args.key_bias,
-              s1_args.value_weight_t, s1_args.value_bias, s1_args.M_query, s1_args.M_key, s1_args.M_value);
+    stage1(stage1_in, query, key, value, stage1_query_weight_t, stage1_query_bias, stage1_key_weight_t, stage1_key_bias,
+              stage1_value_weight_t, stage1_value_bias, stage1_M_query, stage1_M_key, stage1_M_value);
 
-    stage2(q, k, v, s1_args.in, s2_args.out, s2_args.dense_weight_t, s2_args.dense_bias, s2_args.M_attention_probs, s2_args.M_attention_out,
-              s2_args.M_dense_out, s2_args.M_residual, s2_args.norm_weight, s2_args.norm_bias, s2_args.M_stage2);
+    stage2(query, key, value, stage1_in, stage2_out, stage2_dense_weight_t, stage2_dense_bias, stage2_M_attention_probs, stage2_M_attention_out,
+              stage2_M_dense_out, stage2_M_residual, stage2_norm_weight, stage2_norm_bias, M_stage2);
     
 }
 
