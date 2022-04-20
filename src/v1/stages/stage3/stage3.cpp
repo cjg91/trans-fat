@@ -1,8 +1,10 @@
 #include <sys/types.h>
+#include <inttypes.h>
 #include <algorithm>
 #include <stdio.h>
 #include "config.hpp"
-
+#include "stage3.hpp"
+#include <iostream>
 /*
     A: NxK
     B: KxM
@@ -126,7 +128,7 @@ int8_t gelu_fused(int32_t gelu_in, float scaling_factor, float M_stage3, int b_i
 
 }
 
-void linear_fused(int8_t *A, int8_t *B, int32_t *bias, int8_t *out, const int N, const int M, const int K, float M_gelu, float M_stage3)
+void linear_fused(int8_t *A, int8_t *B, int32_t *bias, int8_t *out, float M_gelu, float M_stage3)
 {
     // compute fused gelu constants
     const float k = 1.4142;
@@ -144,19 +146,65 @@ void linear_fused(int8_t *A, int8_t *B, int32_t *bias, int8_t *out, const int N,
 
     int32_t shift_int = int32_t(1 / sigmoid_scaling_factor);
 
-    for (int i = 0; i < N; i++)
+    // buffers for tile mmult
+    int32_t out_block[TILE_SIZE][TILE_SIZE];
+    int8_t B_line[TILE_SIZE];
+
+    for (int it = 0; it < CFG::seqlen/TILE_SIZE; ++it)
     {
-        for (int j = 0; j < M; j++)
+        for (int jt = 0; jt < CFG::ffdim/TILE_SIZE; ++jt)
+        {
+            // initialize output with bias
+            for (int i = 0; i < TILE_SIZE; ++i){
+                for (int j = 0; j < TILE_SIZE; ++j){
+                    out_block[i][j] = bias[jt*TILE_SIZE + j];
+                }
+            }
+
+            for (int kt = 0; kt < CFG::dmodel/TILE_SIZE; ++kt)
+            {
+                for (int k = 0; k < TILE_SIZE; ++k)
+                {
+                    // read B values into vector
+                    for (int j = 0; j < TILE_SIZE; ++j){
+                        B_line[j] = B[(kt * TILE_SIZE + k) * CFG::ffdim + jt * TILE_SIZE + j];
+                    }
+
+                    for (int i = 0; i < TILE_SIZE; ++i){
+                        int8_t Ai = A[(it * TILE_SIZE + i) * CFG::dmodel + kt * TILE_SIZE + k];
+                        for (int j = 0; j < TILE_SIZE; ++j){
+                            out_block[i][j] += Ai * B_line[j];
+                            
+                        }
+                    }
+                }
+            }
+
+            // apply gelu and write output
+            for (int i = 0; i < TILE_SIZE; ++i){
+                for (int j = 0; j < TILE_SIZE; ++j){
+                    out[(it * TILE_SIZE + i) * CFG::ffdim + jt * TILE_SIZE + j] = gelu_fused(out_block[i][j], M_gelu, M_stage3, b_int, c_int, shift_int);
+                }
+            }
+            
+        }
+        
+    }
+
+    /*
+    for (int i = 0; i < CFG::seqlen; i++)
+    {
+        for (int j = 0; j < CFG::ffdim; j++)
         {
             // Initialize accumulator
             int32_t acc32 = bias[j];
-            for (int k = 0; k < K; k++)
+            for (int k = 0; k < CFG::dmodel; k++)
             {
-                acc32 += A[i * K + k] * B[k * M + j];
+                acc32 += A[i * CFG::dmodel + k] * B[k * CFG::ffdim + j];
             }
-            out[i * M + j] = gelu_fused(acc32, M_gelu, M_stage3, b_int, c_int, shift_int);
+            out[i * CFG::ffdim + j] = gelu_fused(acc32, M_gelu, M_stage3, b_int, c_int, shift_int);
         }
-    }
+    } */
 }
 
 extern "C" {
@@ -170,6 +218,6 @@ void stage3(int8_t *fc_in, int8_t *dense_weight_t, int32_t *dense_bias, int8_t *
     M_stage 3:          the requantization factor used to quantize the output of GeLU from 32 to 8 bits.
     */
 
-    linear_fused(fc_in, dense_weight_t, dense_bias, dense_out, CFG::seqlen, CFG::ffdim, CFG::dmodel, dense_acc_scale, M_stage3);
+    linear_fused(fc_in, dense_weight_t, dense_bias, dense_out, dense_acc_scale, M_stage3);
 }
 }
