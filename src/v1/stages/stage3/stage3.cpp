@@ -190,21 +190,6 @@ void linear_fused(int8_t *A, int8_t *B, int32_t *bias, int8_t *out, float M_gelu
         }
         
     }
-
-    /*
-    for (int i = 0; i < CFG::seqlen; i++)
-    {
-        for (int j = 0; j < CFG::ffdim; j++)
-        {
-            // Initialize accumulator
-            int32_t acc32 = bias[j];
-            for (int k = 0; k < CFG::dmodel; k++)
-            {
-                acc32 += A[i * CFG::dmodel + k] * B[k * CFG::ffdim + j];
-            }
-            out[i * CFG::ffdim + j] = gelu_fused(acc32, M_gelu, M_stage3, b_int, c_int, shift_int);
-        }
-    } */
 }
 
 extern "C" {
