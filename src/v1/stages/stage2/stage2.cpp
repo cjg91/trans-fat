@@ -353,10 +353,26 @@ void attention_values_fused(int8_t* probs, int8_t* value, int8_t* attn_out, cons
    }
 }
 
+int16_t requant(int32_t ob, int8_t sb, float Md, float Mr)
+{
+    int8_t out8 = int8_t(ob * Md) + sb;
+    return int16_t(out8 * Mr);        
+}
+
+void write_output(int it, int jt, int32_t out_block[TILE_SIZE2][TILE_SIZE2], int8_t skip_buff[TILE_SIZE2][TILE_SIZE2], float Md, float Mr, int16_t *out)
+{
+    for (int i = 0; i < TILE_SIZE2; ++i){
+        for (int j = 0; j < TILE_SIZE2; ++j){
+            out[(it * TILE_SIZE2 + i) * CFG::dmodel + jt * TILE_SIZE2 + j] = requant(out_block[i][j], skip_buff[i][j], Md, Mr);
+        }
+     }
+}
+
 void linear_fused2(int8_t* A, int8_t* B, int32_t* bias, int16_t* out, int8_t* skip_conn, float M_dense, float M_residual) {
     
     // buffers for tile mmult
     int32_t out_block[TILE_SIZE2][TILE_SIZE2];
+    int8_t skip_buff[TILE_SIZE2][TILE_SIZE2];
     int8_t B_line[TILE_SIZE2];
 
 
@@ -373,6 +389,7 @@ void linear_fused2(int8_t* A, int8_t* B, int32_t* bias, int16_t* out, int8_t* sk
                 for (int j = 0; j < TILE_SIZE2; ++j){
                     #pragma HLS unroll
                     out_block[i][j] = bias[jt * TILE_SIZE2 + j];
+                    skip_buff[i][j] = skip_conn[(it * TILE_SIZE2 + i) * CFG::dmodel + jt * TILE_SIZE4 + j];
                 }
             }
 
@@ -397,14 +414,7 @@ void linear_fused2(int8_t* A, int8_t* B, int32_t* bias, int16_t* out, int8_t* sk
                 }
             }
 
-            for (int i = 0; i < TILE_SIZE2; ++i){
-                #pragma HLS PIPELINE II=1
-                for (int j = 0; j < TILE_SIZE2; ++j){
-                    int8_t out8 = int8_t(out_block[i][j] * M_dense) + skip_conn[(it*TILE_SIZE2 + i) * CFG::dmodel + jt*TILE_SIZE2 + j];
-                    out[(it * TILE_SIZE2 + i) * CFG::dmodel + jt * TILE_SIZE2 + j] = int16_t(out8 * M_residual);
-                }
-            }
-            
+            write_output(it, jt, out_block, skip_buff, M_dense, M_residual, out);            
         }
         
     }
