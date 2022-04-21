@@ -95,8 +95,8 @@ endif
 
 ############################## Setting up Host Variables ##############################
 #Include Required Host Source Files
-CXXFLAGS += -I$(XF_PROJ_ROOT)/common/includes/xcl2
-HOST_SRCS += $(XF_PROJ_ROOT)/common/includes/xcl2/xcl2.cpp ../src/v$(VERSION)/host_$(PART).cpp
+CXXFLAGS += -I$(XF_PROJ_ROOT)/common/includes/xcl2 -I$(XF_PROJ_ROOT)/common/includes/cmdparser -I$(XF_PROJ_ROOT)/common/includes/logger
+HOST_SRCS += $(XF_PROJ_ROOT)/common/includes/xcl2/xcl2.cpp $(XF_PROJ_ROOT)/common/includes/cmdparser/cmdlineparser.cpp $(XF_PROJ_ROOT)/common/includes/logger/logger.cpp	../src/v$(VERSION)/host_$(PART).cpp
 # Host compiler global settings
 CXXFLAGS += -fmessage-length=0 
 LDFLAGS += -lrt -lstdc++ 
