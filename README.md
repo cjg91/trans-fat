@@ -21,10 +21,9 @@ TODO
 - None
 
 ### v1
-- Memory optimizations
-    - wider ports
-    - multiple parallel ports
-
+- Linear layer tiling
+- buffering of input and output data
+- unrolling of multiplication inner loops
 
 ### v2
 

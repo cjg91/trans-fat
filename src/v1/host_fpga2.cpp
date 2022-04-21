@@ -213,7 +213,7 @@ int main(int argc, char **argv) {
   // recommended
   // to always use enqueueTask() for invoking HLS kernel
 
-  const int n_trials = 1;
+  const int n_trials = 100;
   double cumu_time = 0;
   auto trial_times = std::vector<double>();
   for (int i = 0; i < n_trials; i++) {
