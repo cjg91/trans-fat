@@ -286,7 +286,7 @@ int main(int argc, char **argv) {
     program[1] = cl::Program(context[1], {cl::Device(device_id[1])}, bins2, NULL, &err);
     OCL_CHECK(err, krnl_fpga2= cl::Kernel(program[1], "fpga2", &err));
 
-    //xcl::P2P::init(platform_id);
+    xcl::P2P::init(platform_id);
     std::chrono::high_resolution_clock::time_point start = std::chrono::high_resolution_clock::now();
 
 
@@ -451,9 +451,11 @@ int main(int argc, char **argv) {
     std::cout << "Launch FPGA-1\n" << std::endl;
     OCL_CHECK(err, err = queue[0].enqueueTask(krnl_fpga1));
 
+    queue[0].finish();
 
 
-    /*********** WITHOUT P2P **************/
+/*
+    //WITHOUT P2P//
     OCL_CHECK(err, err = queue[0].enqueueMigrateMemObjects({buffer_stage2_out},
                                                   CL_MIGRATE_MEM_OBJECT_HOST));
 
@@ -462,9 +464,8 @@ int main(int argc, char **argv) {
     memcpy(stage3_fc_in.data(), stage2_out.data(), sizeof(decltype(stage2_out)::value_type)*stage2_out.size()); 
     OCL_CHECK(err, err = queue[1].enqueueMigrateMemObjects({buffer_stage3_fc_in},
                                                   0 ));
+                                                  */
 
-
-/*
     //------------------------- P2P
     //-----------------------------------------------------------
     p2pStart = std::chrono::high_resolution_clock::now();
@@ -485,7 +486,6 @@ int main(int argc, char **argv) {
     p2pEnd = std::chrono::high_resolution_clock::now();
     clReleaseMemObject(exported_buf);
     // -----------------------------------------------------------------------
-    */
     std::cout << "Launch FPGA-2\n" << std::endl;
     OCL_CHECK(err, err = queue[1].enqueueTask(krnl_fpga2));
     queue[1].finish();
@@ -494,9 +494,16 @@ int main(int argc, char **argv) {
                                                   CL_MIGRATE_MEM_OBJECT_HOST));
     std::chrono::high_resolution_clock::time_point end = std::chrono::high_resolution_clock::now();
 
+
+    OCL_CHECK(err, err = queue[0].enqueueMigrateMemObjects({buffer_stage2_out},
+                                                  CL_MIGRATE_MEM_OBJECT_HOST));
+
+
     queue[0].finish();
 
     queue[1].finish();
+
+
 
 
 
@@ -546,13 +553,13 @@ int main(int argc, char **argv) {
   bool match_fpga1 = check(stage2_out_gt, stage2_out.data(), CFG::seqlen, CFG::dmodel);
  
   std::cout << "TEST FPGA1" << (match_fpga1 ? "PASSED" : "FAILED") << std::endl;
-
+/*
   std::cout << "Ground truth" << std::endl;
   printmat(stage4_out_gt, 10,1);
 
   std::cout << "Test"<<std::endl;
   printmat(stage4_dense_out.data(), 10,1);
-  
+ */ 
 
   // Compare the results of the Device to the simulation
   bool match = check(stage4_out_gt, stage4_dense_out.data(), CFG::seqlen, CFG::dmodel);
