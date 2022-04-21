@@ -1,7 +1,9 @@
 #include "stage4.hpp"
 #include <math.h>
 #include <stdio.h>
+#include <inttypes.h>
 #include "config.hpp"
+#include <iostream>
 
 void linear_sw4(int8_t* A, int8_t* B, int32_t* bias, int32_t* out, const int N, const int M, const int K) {
     
@@ -135,17 +137,71 @@ void stage4_gt(int8_t *fc_in, int8_t *skip_conn, float M_residual, int8_t *dense
 
 /**** ^^ SW Ground Truth Above ^^ ****/
 
-void linear_fused(int8_t* A, int8_t* B, int32_t* bias, int16_t* out, const int N, const int M, const int K, int8_t* skip_conn, float M_dense, float M_residual) {
-    
-    for (int i = 0; i < N; i++) {
-        for (int j = 0; j < M; j++) {
-            int32_t acc32 = bias[j];
-            for (int k = 0; k < K; k++) {
-                acc32 += A[i*K+k] * B[k*M+j];
-            }
-            int8_t acc8 = int8_t(acc32 * M_dense) + skip_conn[i * M + j];
-            out[i * M + j] = int16_t(acc8 * M_residual);
+
+int16_t requant_out(int32_t ob, int8_t sb, float Md, float Mr)
+{
+    int8_t out8 = int8_t(ob * Md) + sb;
+    return int16_t(out8 * Mr);        
+}
+
+void write_out(int it, int jt, int32_t out_block[TILE_SIZE4][TILE_SIZE4], int8_t skip_buff[TILE_SIZE4][TILE_SIZE4], float Md, float Mr, int16_t *out)
+{
+    for (int i = 0; i < TILE_SIZE4; ++i){
+        for (int j = 0; j < TILE_SIZE4; ++j){
+            out[(it * TILE_SIZE4 + i) * CFG::dmodel + jt * TILE_SIZE4 + j] = requant_out(out_block[i][j], skip_buff[i][j], Md, Mr);
         }
+     }
+}
+
+void linear_fused(int8_t* A, int8_t* B, int32_t* bias, int16_t* out, int8_t* skip_conn, float M_dense, float M_residual) {
+    
+        // buffers for tile mmult
+    int32_t out_block[TILE_SIZE4][TILE_SIZE4];
+    int8_t skip_buff[TILE_SIZE4][TILE_SIZE4];
+    int8_t B_line[TILE_SIZE4];
+
+    #pragma HLS array_partition dim=2 complete variable=out_block
+    //#pragma HLS array_partition dim=1 factor=32 variable=out_block
+    #pragma HLS array_partition dim=1 complete variable=B_line
+
+    for (int it = 0; it < CFG::seqlen/TILE_SIZE4; ++it)
+    {
+        for (int jt = 0; jt < CFG::dmodel/TILE_SIZE4; ++jt)
+        {
+            // initialize output with bias
+            for (int i = 0; i < TILE_SIZE4; ++i){
+                #pragma HLS PIPELINE II=1
+                for (int j = 0; j < TILE_SIZE4; ++j){
+                    out_block[i][j] = bias[jt*TILE_SIZE4 + j];
+                    skip_buff[i][j] = skip_conn[(it * TILE_SIZE4 + i) * CFG::dmodel + jt * TILE_SIZE4 + j];
+                }
+            }
+
+            for (int kt = 0; kt < CFG::ffdim/TILE_SIZE4; ++kt)
+            {
+                for (int k = 0; k < TILE_SIZE4; ++k)
+                {
+                    // read B values into vector
+                    for (int j = 0; j < TILE_SIZE4; ++j){
+                        B_line[j] = B[(kt * TILE_SIZE4 + k) * CFG::dmodel + jt * TILE_SIZE4 + j];
+                    }
+
+                    for (int i = 0; i < TILE_SIZE4; ++i){
+                        //#pragma HLS unroll factor=4
+                        #pragma HLS PIPELINE II=1
+                        int8_t Ai = A[(it * TILE_SIZE4 + i) * CFG::ffdim + kt * TILE_SIZE4 + k];
+                        for (int j = 0; j < TILE_SIZE4; ++j){
+                            #pragma HLS unroll complete
+                            out_block[i][j] += Ai * B_line[j];
+                        }
+                    }
+                }
+            }
+            
+            write_out(it, jt, out_block, skip_buff, M_dense, M_residual, out);
+           
+        }
+        
     }
 }
 
@@ -190,7 +246,7 @@ void stage4(int8_t *fc_in, int8_t *skip_conn, float M_residual, int8_t *dense_we
     int16_t fc_ln_buff[CFG::seqlen][CFG::dmodel];
     int16_t* buff = &fc_ln_buff[0][0];
 
-    linear_fused(fc_in, dense_weight_t, dense_bias, buff, CFG::seqlen, CFG::dmodel, CFG::ffdim, skip_conn, M_dense_acc, M_residual);
+    linear_fused(fc_in, dense_weight_t, dense_bias, buff, skip_conn, M_dense_acc, M_residual);
     layernorm_fused(buff, dense_out, norm_weight, norm_bias, M_residual, M_stage4);
 
 }

@@ -9,5 +9,6 @@ namespace CFG
     const int dmodel = 768;
     const int ffdim = 3072;
     const float eps = 1e-5;
+
 } // namespace CONFIG
 }

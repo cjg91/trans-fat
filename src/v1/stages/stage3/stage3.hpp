@@ -1,6 +1,8 @@
 #pragma once
 
-#include <sys/types.h>
+#include <inttypes.h>
+
+const int TILE_SIZE = 128;
 
 extern "C"
 {

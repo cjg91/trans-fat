@@ -41,7 +41,7 @@ int main() {
 
     genmat(dense_weight_t, CFG::dmodel, CFG::ffdim, 9);
 
-    genmat(dense_bias, 1, CFG::ffdim, 63);
+    genmat(dense_bias, 1, CFG::ffdim, 1);
 
     float dense_acc_scale = 0.004;
     float M_stage3 = 0.3;
