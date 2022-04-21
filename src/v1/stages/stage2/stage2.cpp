@@ -1,7 +1,8 @@
-#include <sys/types.h>
+#include <inttypes.h>
 #include <iostream>
 #include <cmath>
 #include "config.hpp"
+#include "stage2.hpp"
 
 /*
     A: NxK
@@ -352,17 +353,60 @@ void attention_values_fused(int8_t* probs, int8_t* value, int8_t* attn_out, cons
    }
 }
 
-void linear_fused2(int8_t* A, int8_t* B, int32_t* bias, int16_t* out, const int N, const int M, const int K, int8_t* skip_conn, float M_dense, float M_residual) {
+void linear_fused2(int8_t* A, int8_t* B, int32_t* bias, int16_t* out, int8_t* skip_conn, float M_dense, float M_residual) {
     
-    for (int i = 0; i < N; i++) {
-        for (int j = 0; j < M; j++) {
-            int32_t acc32 = bias[j];
-            for (int k = 0; k < K; k++) {
-                acc32 += A[i*K+k] * B[k*M+j];
+    // buffers for tile mmult
+    int32_t out_block[TILE_SIZE2][TILE_SIZE2];
+    int8_t B_line[TILE_SIZE2];
+
+
+    #pragma HLS array_partition dim=2 complete variable=out_block
+    #pragma HLS array_partition dim=1 complete variable=B_line
+
+
+    for (int it = 0; it < CFG::seqlen/TILE_SIZE2; ++it)
+    {
+        for (int jt = 0; jt < CFG::dmodel/TILE_SIZE2; ++jt)
+        {
+            // initialize output with bias
+            for (int i = 0; i < TILE_SIZE2; ++i){
+                for (int j = 0; j < TILE_SIZE2; ++j){
+                    #pragma HLS unroll
+                    out_block[i][j] = bias[jt * TILE_SIZE2 + j];
+                }
             }
-            int8_t acc8 = int8_t(acc32 * M_dense) + skip_conn[i * M + j];
-            out[i * M + j] = int16_t(acc8 * M_residual);
+
+            for (int kt = 0; kt < CFG::dmodel/TILE_SIZE2; ++kt)
+            {
+                for (int k = 0; k < TILE_SIZE2; ++k)
+                {
+                    
+                    // read B values into vector
+                    for (int j = 0; j < TILE_SIZE2; ++j){
+                        B_line[j] = B[(kt * TILE_SIZE2 + k) * CFG::dmodel + jt * TILE_SIZE2 + j];
+                    }
+
+                    for (int i = 0; i < TILE_SIZE2; ++i){
+                        #pragma HLS PIPELINE II=1
+                        int8_t Ai = A[(it * TILE_SIZE2 + i) * CFG::dmodel + kt * TILE_SIZE2 + k];
+                        for (int j = 0; j < TILE_SIZE2; ++j){
+                            #pragma HLS unroll complete
+                            out_block[i][j] += Ai * B_line[j];
+                        }
+                    }
+                }
+            }
+
+            for (int i = 0; i < TILE_SIZE2; ++i){
+                #pragma HLS PIPELINE II=1
+                for (int j = 0; j < TILE_SIZE2; ++j){
+                    int8_t out8 = int8_t(out_block[i][j] * M_dense) + skip_conn[(it*TILE_SIZE2 + i) * CFG::dmodel + jt*TILE_SIZE2 + j];
+                    out[(it * TILE_SIZE2 + i) * CFG::dmodel + jt * TILE_SIZE2 + j] = int16_t(out8 * M_residual);
+                }
+            }
+            
         }
+        
     }
 }
 
@@ -410,7 +454,7 @@ void stage2(int8_t* query_in, int8_t* key_in, int8_t* value_in, int8_t* skip_in,
     // values, requantize
     attention_values_fused(att_scores_buff, value_in, att_out_buff, CFG::seqlen, CFG::nhead, CFG::dhead, M_attention_out);
     // linear, requantize, residual, requantize
-    linear_fused2(att_out_buff, dense_weight_t, dense_bias, lin_buff, CFG::seqlen, CFG::dmodel, CFG::dmodel, skip_in, M_dense_out, M_residual);
+    linear_fused2(att_out_buff, dense_weight_t, dense_bias, lin_buff, skip_in, M_dense_out, M_residual);
     // layernorm, requantize
     layernorm_fused2(lin_buff, stage2_out, norm_weight, norm_bias, M_residual, M_stage2);
 

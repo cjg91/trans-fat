@@ -120,7 +120,6 @@ void linear_fused(int8_t *A,
                 }
             }
 
-            // apply gelu and write output
             for (int i = 0; i < TILE_SIZE1; ++i){
                 #pragma HLS PIPELINE II=1
                 for (int j = 0; j < TILE_SIZE1; ++j){
