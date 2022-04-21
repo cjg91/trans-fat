@@ -214,7 +214,11 @@ else
 endif
 else
 ifeq ($(HOST_ARCH), x86)
-	$(EXECUTABLE) $(CMD_ARGS)
+ifeq ($(PART), all)
+	$(EXECUTABLE) -x1 ../builds/v$(VERSION).fpga1/fpga1.xclbin -x2 ../builds/v$(VERSION).fpga2/fpga2.xclbin
+else
+	$(EXECUTABLE) $(RES_DIR)/$(PART).xclbin
+endif
 else
 	$(ECHO) "Please copy the content of sd_card folder and data to an SD Card and run on the board"
 endif

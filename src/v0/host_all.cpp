@@ -30,7 +30,7 @@ void printmat(int8_t *A, const int M, const int N)
     std::cout << std::endl;
 }
 
-template <typename T>
+    template <typename T>
 void genmat(T *A, const int M, const int N, const int mod)
 {
     for (int i = 0; i < M; i++)
@@ -42,7 +42,7 @@ void genmat(T *A, const int M, const int N, const int mod)
     }
 }
 
-template <typename T>
+    template <typename T>
 const bool check(T *A, T *B, const int M, const int N)
 {
     for (int i = 0; i < M * N; i++)
@@ -116,16 +116,16 @@ int main(int argc, char **argv) {
 
     /********* fpga1 SW Ground Truth *********/
     fpga1_gt(s1_args, s2_args);
-    
+
     /********** STAGE 3 ARGS ***********/
-	std::vector<int8_t, aligned_allocator<int8_t>> stage3_fc_in(CFG::seqlen*CFG::dmodel);
-	std::vector<int8_t, aligned_allocator<int8_t>> stage3_dense_weight_t(CFG::dmodel*CFG::ffdim);
-	std::vector<int32_t, aligned_allocator<int32_t>> stage3_dense_bias(CFG::ffdim);
-	std::vector<int8_t, aligned_allocator<int8_t>> fc3_to_fc4_buff(CFG::seqlen*CFG::ffdim);
+    std::vector<int8_t, aligned_allocator<int8_t>> stage3_fc_in(CFG::seqlen*CFG::dmodel);
+    std::vector<int8_t, aligned_allocator<int8_t>> stage3_dense_weight_t(CFG::dmodel*CFG::ffdim);
+    std::vector<int32_t, aligned_allocator<int32_t>> stage3_dense_bias(CFG::ffdim);
+    std::vector<int8_t, aligned_allocator<int8_t>> fc3_to_fc4_buff(CFG::seqlen*CFG::ffdim);
 
     stage3_args_t s3_args;
     s3_args.fc_in = s2_args.out; // For the SW ground truth output, chain fpga1 and fpga2 
-    
+
     s3_args.dense_weight_t = stage3_dense_weight_t.data();
     s3_args.dense_bias = stage3_dense_bias.data();
     s3_args.dense_acc_scale = 0.004;
@@ -135,12 +135,12 @@ int main(int argc, char **argv) {
     genmat(s3_args. dense_bias, 1, CFG::ffdim, 71);
 
     /********** STAGE 4 ARGS ***********/
-	std::vector<int8_t, aligned_allocator<int8_t>> stage4_dense_weight_t(CFG::ffdim*CFG::dmodel);
-	std::vector<int8_t, aligned_allocator<int8_t>> stage4_dense_out(CFG::seqlen*CFG::dmodel);
-	std::vector<int32_t, aligned_allocator<int32_t>> stage4_dense_bias(CFG::dmodel);
-	std::vector<int16_t, aligned_allocator<int16_t>> stage4_norm_weight(CFG::dmodel);
-	std::vector<int16_t, aligned_allocator<int16_t>> stage4_norm_bias(CFG::dmodel);
-    
+    std::vector<int8_t, aligned_allocator<int8_t>> stage4_dense_weight_t(CFG::ffdim*CFG::dmodel);
+    std::vector<int8_t, aligned_allocator<int8_t>> stage4_dense_out(CFG::seqlen*CFG::dmodel);
+    std::vector<int32_t, aligned_allocator<int32_t>> stage4_dense_bias(CFG::dmodel);
+    std::vector<int16_t, aligned_allocator<int16_t>> stage4_norm_weight(CFG::dmodel);
+    std::vector<int16_t, aligned_allocator<int16_t>> stage4_norm_bias(CFG::dmodel);
+
     auto stage4_out_gt = new int8_t[CFG::seqlen*CFG::dmodel];
 
     stage4_args_t s4_args;
@@ -166,13 +166,9 @@ int main(int argc, char **argv) {
     std::fill(stage2_out.begin(), stage2_out.end(), 0);
     std::fill(stage4_dense_out.begin(), stage4_dense_out.end(), 0);
 
-
-
-
-
     /**********************************/
     /* Get Devices and Create Kernels */
-    
+
     // Command Line Parser
     sda::utils::CmdLineParser parser;
 
@@ -216,8 +212,8 @@ int main(int argc, char **argv) {
 
     if (device_count < 2) {
         std::cout << "WARNING: This design does P2P transfer between two devices. "
-                     "Please run this "
-                     "design on machine with two devices.\n";
+            "Please run this "
+            "design on machine with two devices.\n";
         return 0;
     }
 
@@ -237,24 +233,24 @@ int main(int argc, char **argv) {
         std::cout << device_name << std::endl;
         if (strstr(device_name, "2018") != 0) {
             std::cout << "[INFO]: The example is not supported for " << device_name
-                      << " this platform for hw_emu. Please try other flows." << '\n';
+                << " this platform for hw_emu. Please try other flows." << '\n';
             return EXIT_SUCCESS;
         }
         clGetDeviceInfo(device_id[1], CL_DEVICE_NAME, 256, &device_name, nullptr);
         if (strstr(device_name, "2018") != 0) {
             std::cout << "[INFO]: The example is not supported for " << device_name
-                      << " this platform for hw_emu. Please try other flows." << '\n';
+                << " this platform for hw_emu. Please try other flows." << '\n';
             return EXIT_SUCCESS;
         }
     }
     if (nodma_cnt == 2) {
         std::cout
             << "WARNING: P2P transfer can only be done between xdma and nodma devices but not between 2 nodma devices. "
-               "Please run this "
-               "design on machine with both xdma and nodma devices.\n";
+            "Please run this "
+            "design on machine with both xdma and nodma devices.\n";
         return 0;
     }
-    
+
 
     cl::Context context[device_count];
     cl::CommandQueue queue[device_count];
@@ -287,184 +283,183 @@ int main(int argc, char **argv) {
     OCL_CHECK(err, krnl_fpga2= cl::Kernel(program[1], "fpga2", &err));
 
     xcl::P2P::init(platform_id);
-    std::chrono::high_resolution_clock::time_point start = std::chrono::high_resolution_clock::now();
 
 
-  // Allocate Buffer in Global Memory
-  // Buffers are allocated using CL_MEM_USE_HOST_PTR for efficient memory and
-  // Device-to-host communication
-  OCL_CHECK(err, cl::Buffer buffer_stage1_in(
-                     context[0], CL_MEM_USE_HOST_PTR | CL_MEM_READ_ONLY,
-                     sizeof(decltype(stage1_in)::value_type)*stage1_in.size(),
-                     stage1_in.data(), &err));
-  OCL_CHECK(err, cl::Buffer buffer_query(
-                     context[0], CL_MEM_USE_HOST_PTR,
-                     sizeof(decltype(query)::value_type)*query.size(),
-                     query.data(), &err));
-  OCL_CHECK(err, cl::Buffer buffer_key(
-                     context[0], CL_MEM_USE_HOST_PTR,
-                     sizeof(decltype(key)::value_type)*key.size(),
-                     key.data(), &err));
-  OCL_CHECK(err, cl::Buffer buffer_value(
-                     context[0], CL_MEM_USE_HOST_PTR,
-                     sizeof(decltype(value)::value_type)*value.size(),
-                     value.data(), &err));
-  OCL_CHECK(err, cl::Buffer buffer_stage1_query_weight_t(
-                     context[0], CL_MEM_USE_HOST_PTR | CL_MEM_READ_ONLY,
-                     sizeof(decltype(stage1_query_weight_t)::value_type)*stage1_query_weight_t.size(),
-                     stage1_query_weight_t.data(), &err));
-  OCL_CHECK(err, cl::Buffer buffer_stage1_query_bias(
-                     context[0], CL_MEM_USE_HOST_PTR | CL_MEM_READ_ONLY,
-                     sizeof(decltype(stage1_query_bias)::value_type)*stage1_query_bias.size(),
-                     stage1_query_bias.data(), &err));
-  OCL_CHECK(err, cl::Buffer buffer_stage1_key_weight_t(
-                     context[0], CL_MEM_USE_HOST_PTR | CL_MEM_READ_ONLY,
-                     sizeof(decltype(stage1_key_weight_t)::value_type)*stage1_key_weight_t.size(),
-                     stage1_key_weight_t.data(), &err));
-  OCL_CHECK(err, cl::Buffer buffer_stage1_key_bias(
-                     context[0], CL_MEM_USE_HOST_PTR | CL_MEM_READ_ONLY,
-                     sizeof(decltype(stage1_key_bias)::value_type)*stage1_key_bias.size(),
-                     stage1_key_bias.data(), &err));
-  OCL_CHECK(err, cl::Buffer buffer_stage1_value_weight_t(
-                     context[0], CL_MEM_USE_HOST_PTR | CL_MEM_READ_ONLY,
-                     sizeof(decltype(stage1_value_weight_t)::value_type)*stage1_value_weight_t.size(),
-                     stage1_value_weight_t.data(), &err));
-  OCL_CHECK(err, cl::Buffer buffer_stage1_value_bias(
-                     context[0], CL_MEM_USE_HOST_PTR | CL_MEM_READ_ONLY,
-                     sizeof(decltype(stage1_value_bias)::value_type)*stage1_value_bias.size(),
-                     stage1_value_bias.data(), &err));
-  OCL_CHECK(err, cl::Buffer buffer_stage2_out(
-                     context[0], CL_MEM_USE_HOST_PTR,
-                     sizeof(decltype(stage2_out)::value_type)*stage2_out.size(),
-                     stage2_out.data(), &err));
-  OCL_CHECK(err, cl::Buffer buffer_stage2_dense_weight_t(
-                     context[0], CL_MEM_USE_HOST_PTR | CL_MEM_READ_ONLY,
-                     sizeof(decltype(stage2_dense_weight_t)::value_type)*stage2_dense_weight_t.size(),
-                     stage2_dense_weight_t.data(), &err));
-  OCL_CHECK(err, cl::Buffer buffer_stage2_dense_bias(
-                     context[0], CL_MEM_USE_HOST_PTR | CL_MEM_READ_ONLY,
-                     sizeof(decltype(stage2_dense_bias)::value_type)*stage2_dense_bias.size(),
-                     stage2_dense_bias.data(), &err));
-  OCL_CHECK(err, cl::Buffer buffer_stage2_norm_weight(
-                     context[0], CL_MEM_USE_HOST_PTR | CL_MEM_READ_ONLY,
-                     sizeof(decltype(stage2_norm_weight)::value_type)*stage2_norm_weight.size(),
-                     stage2_norm_weight.data(), &err));
-  OCL_CHECK(err, cl::Buffer buffer_stage2_norm_bias(
-                     context[0], CL_MEM_USE_HOST_PTR | CL_MEM_READ_ONLY,
-                     sizeof(decltype(stage2_norm_bias)::value_type)*stage2_norm_bias.size(),
-                     stage2_norm_bias.data(), &err));
+    // Allocate Buffer in Global Memory
+    // Buffers are allocated using CL_MEM_USE_HOST_PTR for efficient memory and
+    // Device-to-host communication
+    OCL_CHECK(err, cl::Buffer buffer_stage1_in(
+                context[0], CL_MEM_USE_HOST_PTR | CL_MEM_READ_ONLY,
+                sizeof(decltype(stage1_in)::value_type)*stage1_in.size(),
+                stage1_in.data(), &err));
+    OCL_CHECK(err, cl::Buffer buffer_query(
+                context[0], CL_MEM_USE_HOST_PTR,
+                sizeof(decltype(query)::value_type)*query.size(),
+                query.data(), &err));
+    OCL_CHECK(err, cl::Buffer buffer_key(
+                context[0], CL_MEM_USE_HOST_PTR,
+                sizeof(decltype(key)::value_type)*key.size(),
+                key.data(), &err));
+    OCL_CHECK(err, cl::Buffer buffer_value(
+                context[0], CL_MEM_USE_HOST_PTR,
+                sizeof(decltype(value)::value_type)*value.size(),
+                value.data(), &err));
+    OCL_CHECK(err, cl::Buffer buffer_stage1_query_weight_t(
+                context[0], CL_MEM_USE_HOST_PTR | CL_MEM_READ_ONLY,
+                sizeof(decltype(stage1_query_weight_t)::value_type)*stage1_query_weight_t.size(),
+                stage1_query_weight_t.data(), &err));
+    OCL_CHECK(err, cl::Buffer buffer_stage1_query_bias(
+                context[0], CL_MEM_USE_HOST_PTR | CL_MEM_READ_ONLY,
+                sizeof(decltype(stage1_query_bias)::value_type)*stage1_query_bias.size(),
+                stage1_query_bias.data(), &err));
+    OCL_CHECK(err, cl::Buffer buffer_stage1_key_weight_t(
+                context[0], CL_MEM_USE_HOST_PTR | CL_MEM_READ_ONLY,
+                sizeof(decltype(stage1_key_weight_t)::value_type)*stage1_key_weight_t.size(),
+                stage1_key_weight_t.data(), &err));
+    OCL_CHECK(err, cl::Buffer buffer_stage1_key_bias(
+                context[0], CL_MEM_USE_HOST_PTR | CL_MEM_READ_ONLY,
+                sizeof(decltype(stage1_key_bias)::value_type)*stage1_key_bias.size(),
+                stage1_key_bias.data(), &err));
+    OCL_CHECK(err, cl::Buffer buffer_stage1_value_weight_t(
+                context[0], CL_MEM_USE_HOST_PTR | CL_MEM_READ_ONLY,
+                sizeof(decltype(stage1_value_weight_t)::value_type)*stage1_value_weight_t.size(),
+                stage1_value_weight_t.data(), &err));
+    OCL_CHECK(err, cl::Buffer buffer_stage1_value_bias(
+                context[0], CL_MEM_USE_HOST_PTR | CL_MEM_READ_ONLY,
+                sizeof(decltype(stage1_value_bias)::value_type)*stage1_value_bias.size(),
+                stage1_value_bias.data(), &err));
+    OCL_CHECK(err, cl::Buffer buffer_stage2_out(
+                context[0], CL_MEM_USE_HOST_PTR,
+                sizeof(decltype(stage2_out)::value_type)*stage2_out.size(),
+                stage2_out.data(), &err));
+    OCL_CHECK(err, cl::Buffer buffer_stage2_dense_weight_t(
+                context[0], CL_MEM_USE_HOST_PTR | CL_MEM_READ_ONLY,
+                sizeof(decltype(stage2_dense_weight_t)::value_type)*stage2_dense_weight_t.size(),
+                stage2_dense_weight_t.data(), &err));
+    OCL_CHECK(err, cl::Buffer buffer_stage2_dense_bias(
+                context[0], CL_MEM_USE_HOST_PTR | CL_MEM_READ_ONLY,
+                sizeof(decltype(stage2_dense_bias)::value_type)*stage2_dense_bias.size(),
+                stage2_dense_bias.data(), &err));
+    OCL_CHECK(err, cl::Buffer buffer_stage2_norm_weight(
+                context[0], CL_MEM_USE_HOST_PTR | CL_MEM_READ_ONLY,
+                sizeof(decltype(stage2_norm_weight)::value_type)*stage2_norm_weight.size(),
+                stage2_norm_weight.data(), &err));
+    OCL_CHECK(err, cl::Buffer buffer_stage2_norm_bias(
+                context[0], CL_MEM_USE_HOST_PTR | CL_MEM_READ_ONLY,
+                sizeof(decltype(stage2_norm_bias)::value_type)*stage2_norm_bias.size(),
+                stage2_norm_bias.data(), &err));
 
 
-  OCL_CHECK(err, cl::Buffer buffer_stage3_fc_in(
-                     context[1], CL_MEM_USE_HOST_PTR | CL_MEM_READ_ONLY,
-                     sizeof(decltype(stage3_fc_in)::value_type)*stage3_fc_in.size(),
-                     stage3_fc_in.data(), &err));
-  OCL_CHECK(err, cl::Buffer buffer_stage3_dense_weight_t(
-                     context[1], CL_MEM_USE_HOST_PTR | CL_MEM_READ_ONLY,
-                     sizeof(decltype(stage3_dense_weight_t)::value_type)*stage3_dense_weight_t.size(),
-                     stage3_dense_weight_t.data(), &err));
-  OCL_CHECK(err, cl::Buffer buffer_stage3_dense_bias(
-                     context[1], CL_MEM_USE_HOST_PTR | CL_MEM_READ_ONLY,
-                     sizeof(decltype(stage3_dense_bias)::value_type)*stage3_dense_bias.size(),
-                     stage3_dense_bias.data(), &err));
-  OCL_CHECK(err, cl::Buffer buffer_fc3_to_fc4_buff(
-                     context[1], CL_MEM_USE_HOST_PTR, 
-                     sizeof(decltype(fc3_to_fc4_buff)::value_type)*fc3_to_fc4_buff.size(),
-                     fc3_to_fc4_buff.data(), &err));
-  OCL_CHECK(err, cl::Buffer buffer_stage4_dense_weight_t(
-                     context[1], CL_MEM_USE_HOST_PTR | CL_MEM_READ_ONLY,
-                     sizeof(decltype(stage4_dense_weight_t)::value_type)*stage4_dense_weight_t.size(),
-                     stage4_dense_weight_t.data(), &err));
-  OCL_CHECK(err, cl::Buffer buffer_stage4_dense_out(
-                     context[1], CL_MEM_USE_HOST_PTR,
-                     sizeof(decltype(stage4_dense_out)::value_type)*stage4_dense_out.size(),
-                     stage4_dense_out.data(), &err));
-  OCL_CHECK(err, cl::Buffer buffer_stage4_dense_bias(
-                     context[1], CL_MEM_USE_HOST_PTR | CL_MEM_READ_ONLY,
-                     sizeof(decltype(stage4_dense_bias)::value_type)*stage4_dense_bias.size(),
-                     stage4_dense_bias.data(), &err));
-  OCL_CHECK(err, cl::Buffer buffer_stage4_norm_weight(
-                     context[1], CL_MEM_USE_HOST_PTR | CL_MEM_READ_ONLY,
-                     sizeof(decltype(stage4_norm_weight)::value_type)*stage4_norm_weight.size(),
-                     stage4_norm_weight.data(), &err));
-  OCL_CHECK(err, cl::Buffer buffer_stage4_norm_bias(
-                     context[1], CL_MEM_USE_HOST_PTR | CL_MEM_READ_ONLY,
-                     sizeof(decltype(stage4_norm_bias)::value_type)*stage4_norm_bias.size(),
-                     stage4_norm_bias.data(), &err));
+    OCL_CHECK(err, cl::Buffer buffer_stage3_fc_in(
+                context[1], CL_MEM_USE_HOST_PTR | CL_MEM_READ_ONLY,
+                sizeof(decltype(stage3_fc_in)::value_type)*stage3_fc_in.size(),
+                stage3_fc_in.data(), &err));
+    OCL_CHECK(err, cl::Buffer buffer_stage3_dense_weight_t(
+                context[1], CL_MEM_USE_HOST_PTR | CL_MEM_READ_ONLY,
+                sizeof(decltype(stage3_dense_weight_t)::value_type)*stage3_dense_weight_t.size(),
+                stage3_dense_weight_t.data(), &err));
+    OCL_CHECK(err, cl::Buffer buffer_stage3_dense_bias(
+                context[1], CL_MEM_USE_HOST_PTR | CL_MEM_READ_ONLY,
+                sizeof(decltype(stage3_dense_bias)::value_type)*stage3_dense_bias.size(),
+                stage3_dense_bias.data(), &err));
+    OCL_CHECK(err, cl::Buffer buffer_fc3_to_fc4_buff(
+                context[1], CL_MEM_USE_HOST_PTR, 
+                sizeof(decltype(fc3_to_fc4_buff)::value_type)*fc3_to_fc4_buff.size(),
+                fc3_to_fc4_buff.data(), &err));
+    OCL_CHECK(err, cl::Buffer buffer_stage4_dense_weight_t(
+                context[1], CL_MEM_USE_HOST_PTR | CL_MEM_READ_ONLY,
+                sizeof(decltype(stage4_dense_weight_t)::value_type)*stage4_dense_weight_t.size(),
+                stage4_dense_weight_t.data(), &err));
+    OCL_CHECK(err, cl::Buffer buffer_stage4_dense_out(
+                context[1], CL_MEM_USE_HOST_PTR,
+                sizeof(decltype(stage4_dense_out)::value_type)*stage4_dense_out.size(),
+                stage4_dense_out.data(), &err));
+    OCL_CHECK(err, cl::Buffer buffer_stage4_dense_bias(
+                context[1], CL_MEM_USE_HOST_PTR | CL_MEM_READ_ONLY,
+                sizeof(decltype(stage4_dense_bias)::value_type)*stage4_dense_bias.size(),
+                stage4_dense_bias.data(), &err));
+    OCL_CHECK(err, cl::Buffer buffer_stage4_norm_weight(
+                context[1], CL_MEM_USE_HOST_PTR | CL_MEM_READ_ONLY,
+                sizeof(decltype(stage4_norm_weight)::value_type)*stage4_norm_weight.size(),
+                stage4_norm_weight.data(), &err));
+    OCL_CHECK(err, cl::Buffer buffer_stage4_norm_bias(
+                context[1], CL_MEM_USE_HOST_PTR | CL_MEM_READ_ONLY,
+                sizeof(decltype(stage4_norm_bias)::value_type)*stage4_norm_bias.size(),
+                stage4_norm_bias.data(), &err));
 
+    OCL_CHECK(err, err = krnl_fpga1.setArg(0, buffer_stage1_in));
+    OCL_CHECK(err, err = krnl_fpga1.setArg(1, buffer_query));
+    OCL_CHECK(err, err = krnl_fpga1.setArg(2, buffer_key));
+    OCL_CHECK(err, err = krnl_fpga1.setArg(3, buffer_value));
+    OCL_CHECK(err, err = krnl_fpga1.setArg(4, buffer_stage1_query_weight_t));
+    OCL_CHECK(err, err = krnl_fpga1.setArg(5, buffer_stage1_query_bias));
+    OCL_CHECK(err, err = krnl_fpga1.setArg(6, buffer_stage1_key_weight_t));
+    OCL_CHECK(err, err = krnl_fpga1.setArg(7, buffer_stage1_key_bias));
+    OCL_CHECK(err, err = krnl_fpga1.setArg(8, buffer_stage1_value_weight_t));
+    OCL_CHECK(err, err = krnl_fpga1.setArg(9, buffer_stage1_value_bias));
+    OCL_CHECK(err, err = krnl_fpga1.setArg(10, s1_args.M_query));
+    OCL_CHECK(err, err = krnl_fpga1.setArg(11, s1_args.M_key));
+    OCL_CHECK(err, err = krnl_fpga1.setArg(12, s1_args.M_value));
+    OCL_CHECK(err, err = krnl_fpga1.setArg(13, buffer_stage2_out));
+    OCL_CHECK(err, err = krnl_fpga1.setArg(14, buffer_stage2_dense_weight_t));
+    OCL_CHECK(err, err = krnl_fpga1.setArg(15, buffer_stage2_dense_bias));
+    OCL_CHECK(err, err = krnl_fpga1.setArg(16, s2_args.M_attention_probs));
+    OCL_CHECK(err, err = krnl_fpga1.setArg(17, s2_args.M_attention_out));
+    OCL_CHECK(err, err = krnl_fpga1.setArg(18, s2_args.M_dense_out));
+    OCL_CHECK(err, err = krnl_fpga1.setArg(19, s2_args.M_residual));
+    OCL_CHECK(err, err = krnl_fpga1.setArg(20, buffer_stage2_norm_weight));
+    OCL_CHECK(err, err = krnl_fpga1.setArg(21, buffer_stage2_norm_bias));
+    OCL_CHECK(err, err = krnl_fpga1.setArg(22, s2_args.M_stage2));
 
+    OCL_CHECK(err, err = krnl_fpga2.setArg(0, buffer_stage3_fc_in));
+    OCL_CHECK(err, err = krnl_fpga2.setArg(1, buffer_stage3_dense_weight_t));
+    OCL_CHECK(err, err = krnl_fpga2.setArg(2, buffer_stage3_dense_bias));
+    OCL_CHECK(err, err = krnl_fpga2.setArg(3, s3_args.dense_acc_scale));
+    OCL_CHECK(err, err = krnl_fpga2.setArg(4, s3_args.M_stage3));
+    OCL_CHECK(err, err = krnl_fpga2.setArg(5, buffer_fc3_to_fc4_buff));
+    OCL_CHECK(err, err = krnl_fpga2.setArg(6, buffer_stage4_dense_weight_t));
+    OCL_CHECK(err, err = krnl_fpga2.setArg(7, buffer_stage4_dense_out));
+    OCL_CHECK(err, err = krnl_fpga2.setArg(8, buffer_stage4_dense_bias));
+    OCL_CHECK(err, err = krnl_fpga2.setArg(9, buffer_stage4_norm_weight));
+    OCL_CHECK(err, err = krnl_fpga2.setArg(10, buffer_stage4_norm_bias));
+    OCL_CHECK(err, err = krnl_fpga2.setArg(11, s4_args.M_residual));
+    OCL_CHECK(err, err = krnl_fpga2.setArg(12, s4_args.M_dense_acc));
+    OCL_CHECK(err, err = krnl_fpga2.setArg(13, s4_args.M_stage4));
 
-  OCL_CHECK(err, err = krnl_fpga1.setArg(0, buffer_stage1_in));
-  OCL_CHECK(err, err = krnl_fpga1.setArg(1, buffer_query));
-  OCL_CHECK(err, err = krnl_fpga1.setArg(2, buffer_key));
-  OCL_CHECK(err, err = krnl_fpga1.setArg(3, buffer_value));
-  OCL_CHECK(err, err = krnl_fpga1.setArg(4, buffer_stage1_query_weight_t));
-  OCL_CHECK(err, err = krnl_fpga1.setArg(5, buffer_stage1_query_bias));
-  OCL_CHECK(err, err = krnl_fpga1.setArg(6, buffer_stage1_key_weight_t));
-  OCL_CHECK(err, err = krnl_fpga1.setArg(7, buffer_stage1_key_bias));
-  OCL_CHECK(err, err = krnl_fpga1.setArg(8, buffer_stage1_value_weight_t));
-  OCL_CHECK(err, err = krnl_fpga1.setArg(9, buffer_stage1_value_bias));
-  OCL_CHECK(err, err = krnl_fpga1.setArg(10, s1_args.M_query));
-  OCL_CHECK(err, err = krnl_fpga1.setArg(11, s1_args.M_key));
-  OCL_CHECK(err, err = krnl_fpga1.setArg(12, s1_args.M_value));
-  OCL_CHECK(err, err = krnl_fpga1.setArg(13, buffer_stage2_out));
-  OCL_CHECK(err, err = krnl_fpga1.setArg(14, buffer_stage2_dense_weight_t));
-  OCL_CHECK(err, err = krnl_fpga1.setArg(15, buffer_stage2_dense_bias));
-  OCL_CHECK(err, err = krnl_fpga1.setArg(16, s2_args.M_attention_probs));
-  OCL_CHECK(err, err = krnl_fpga1.setArg(17, s2_args.M_attention_out));
-  OCL_CHECK(err, err = krnl_fpga1.setArg(18, s2_args.M_dense_out));
-  OCL_CHECK(err, err = krnl_fpga1.setArg(19, s2_args.M_residual));
-  OCL_CHECK(err, err = krnl_fpga1.setArg(20, buffer_stage2_norm_weight));
-  OCL_CHECK(err, err = krnl_fpga1.setArg(21, buffer_stage2_norm_bias));
-  OCL_CHECK(err, err = krnl_fpga1.setArg(22, s2_args.M_stage2));
+    // Copy input data to device global memory
+    OCL_CHECK(err, err = queue[0].enqueueMigrateMemObjects({buffer_stage1_in, buffer_query, buffer_key, buffer_value, buffer_stage1_query_weight_t, 
+                buffer_stage1_query_bias, buffer_stage1_key_weight_t, buffer_stage1_key_bias, 
+                buffer_stage1_value_weight_t, buffer_stage1_value_bias, buffer_stage2_dense_weight_t,
+                buffer_stage2_dense_bias, buffer_stage2_norm_weight, buffer_stage2_norm_bias},
+                0 ));
 
-  OCL_CHECK(err, err = krnl_fpga2.setArg(0, buffer_stage3_fc_in));
-  OCL_CHECK(err, err = krnl_fpga2.setArg(1, buffer_stage3_dense_weight_t));
-  OCL_CHECK(err, err = krnl_fpga2.setArg(2, buffer_stage3_dense_bias));
-  OCL_CHECK(err, err = krnl_fpga2.setArg(3, s3_args.dense_acc_scale));
-  OCL_CHECK(err, err = krnl_fpga2.setArg(4, s3_args.M_stage3));
-  OCL_CHECK(err, err = krnl_fpga2.setArg(5, buffer_fc3_to_fc4_buff));
-  OCL_CHECK(err, err = krnl_fpga2.setArg(6, buffer_stage4_dense_weight_t));
-  OCL_CHECK(err, err = krnl_fpga2.setArg(7, buffer_stage4_dense_out));
-  OCL_CHECK(err, err = krnl_fpga2.setArg(8, buffer_stage4_dense_bias));
-  OCL_CHECK(err, err = krnl_fpga2.setArg(9, buffer_stage4_norm_weight));
-  OCL_CHECK(err, err = krnl_fpga2.setArg(10, buffer_stage4_norm_bias));
-  OCL_CHECK(err, err = krnl_fpga2.setArg(11, s4_args.M_residual));
-  OCL_CHECK(err, err = krnl_fpga2.setArg(12, s4_args.M_dense_acc));
-  OCL_CHECK(err, err = krnl_fpga2.setArg(13, s4_args.M_stage4));
+    OCL_CHECK(err, err = queue[1].enqueueMigrateMemObjects({buffer_stage3_dense_weight_t, buffer_stage3_dense_bias,
+                buffer_stage4_dense_weight_t, buffer_stage4_dense_bias, buffer_stage4_norm_weight,
+                buffer_stage4_norm_bias},
+                0 ));
 
-
-
-  // Copy input data to device global memory
-  OCL_CHECK(err, err = queue[0].enqueueMigrateMemObjects({buffer_stage1_in, buffer_query, buffer_key, buffer_value, buffer_stage1_query_weight_t, 
-                                                   buffer_stage1_query_bias, buffer_stage1_key_weight_t, buffer_stage1_key_bias, 
-                                                   buffer_stage1_value_weight_t, buffer_stage1_value_bias, buffer_stage2_dense_weight_t,
-                                                   buffer_stage2_dense_bias, buffer_stage2_norm_weight, buffer_stage2_norm_bias},
-                                                  0 ));
-
-  OCL_CHECK(err, err = queue[1].enqueueMigrateMemObjects({buffer_stage3_dense_weight_t, buffer_stage3_dense_bias,
-                                                   buffer_stage4_dense_weight_t, buffer_stage4_dense_bias, buffer_stage4_norm_weight,
-                                                   buffer_stage4_norm_bias},
-                                                  0 ));
-
+    queue[0].finish();
+    queue[1].finish();
 
     std::cout << "Launch FPGA-1\n" << std::endl;
+
+    std::chrono::high_resolution_clock::time_point start = std::chrono::high_resolution_clock::now();
     OCL_CHECK(err, err = queue[0].enqueueTask(krnl_fpga1));
 
     queue[0].finish();
 
 
-/*
+    /*
     //WITHOUT P2P//
     OCL_CHECK(err, err = queue[0].enqueueMigrateMemObjects({buffer_stage2_out},
-                                                  CL_MIGRATE_MEM_OBJECT_HOST));
+    CL_MIGRATE_MEM_OBJECT_HOST));
 
     queue[0].finish();
 
     memcpy(stage3_fc_in.data(), stage2_out.data(), sizeof(decltype(stage2_out)::value_type)*stage2_out.size()); 
     OCL_CHECK(err, err = queue[1].enqueueMigrateMemObjects({buffer_stage3_fc_in},
-                                                  0 ));
-                                                  */
+    0 ));
+    */
 
     //------------------------- P2P
     //-----------------------------------------------------------
@@ -480,8 +475,8 @@ int main(int argc, char **argv) {
     OCL_CHECK(err, err = xcl::P2P::getMemObjectFromFd(context[0](), device_id[0], 0, fd, &exported_buf)); // Import
     cl_event event;
     OCL_CHECK(err,
-              err = clEnqueueCopyBuffer(queue[0](), buffer_stage2_out(), exported_buf, 0, 0,sizeof(decltype(stage2_out)::value_type)*stage2_out.size(), 0, nullptr,
-                                        &event)); // transfer
+            err = clEnqueueCopyBuffer(queue[0](), buffer_stage2_out(), exported_buf, 0, 0,sizeof(decltype(stage2_out)::value_type)*stage2_out.size(), 0, nullptr,
+                &event)); // transfer
     clWaitForEvents(1, &event);
     p2pEnd = std::chrono::high_resolution_clock::now();
     clReleaseMemObject(exported_buf);
@@ -491,81 +486,30 @@ int main(int argc, char **argv) {
     queue[1].finish();
     std::cout << "Read data back from FPGA-2 \n" << std::endl;
     OCL_CHECK(err, err = queue[1].enqueueMigrateMemObjects({buffer_stage4_dense_out},
-                                                  CL_MIGRATE_MEM_OBJECT_HOST));
-    std::chrono::high_resolution_clock::time_point end = std::chrono::high_resolution_clock::now();
-
-
+                CL_MIGRATE_MEM_OBJECT_HOST));
     OCL_CHECK(err, err = queue[0].enqueueMigrateMemObjects({buffer_stage2_out},
-                                                  CL_MIGRATE_MEM_OBJECT_HOST));
-
+                CL_MIGRATE_MEM_OBJECT_HOST));
 
     queue[0].finish();
 
     queue[1].finish();
 
+    std::chrono::high_resolution_clock::time_point end = std::chrono::high_resolution_clock::now();
 
+    // OPENCL HOST CODE AREA END
+    bool match_fpga1 = check(stage2_out_gt, stage2_out.data(), CFG::seqlen, CFG::dmodel);
 
+    std::cout << "TEST FPGA1" << (match_fpga1 ? "PASSED" : "FAILED") << std::endl;
 
+    // Compare the results of the Device to the simulation
+    bool match = check(stage4_out_gt, stage4_dense_out.data(), CFG::seqlen, CFG::dmodel);
 
-    
+    std::cout << "TEST FPGA2" << (match ? "PASSED" : "FAILED") << std::endl;
 
+    auto kernel_time = std::chrono::duration<double>(end - start);
+    auto kernel_time_sec = kernel_time.count();
+    std::cout << "Pipeline exection time: " << kernel_time_sec*1000 << "ms" << std::endl;
 
-
-
-/*
-  // Launch the Kernel
-  // For HLS kernels global and local size is always (1,1,1). So, it is
-  // recommended
-  // to always use enqueueTask() for invoking HLS kernel
-
-  const int n_trials = 1;
-  double cumu_time = 0;
-  auto trial_times = std::vector<double>();
-  for (int i = 0; i < n_trials; i++) {
-	  double kernel_time_in_sec = 0;
-	  std::chrono::duration<double> kernel_time(0);
-	  auto kernel_start = std::chrono::high_resolution_clock::now();
-
-	  // Only want to time this kernel to determine bandwidth
-	  OCL_CHECK(err, err = q.enqueueTask(krnl));
-	  q.finish();
-
-	  auto kernel_end = std::chrono::high_resolution_clock::now();
-	  kernel_time = std::chrono::duration<double>(kernel_end - kernel_start);
-	  kernel_time_in_sec = kernel_time.count();
-	  cumu_time += kernel_time_in_sec;
-	  trial_times.push_back(kernel_time_in_sec);
-
-  // Copy Result from Device Global Memory to Host Local Memory
-  OCL_CHECK(err, err = q.enqueueMigrateMemObjects({buffer_stage2_out},
-                                                  CL_MIGRATE_MEM_OBJECT_HOST));
-  q.finish();
-
-  }
-
-  auto avg_time = cumu_time / n_trials;
-  auto min_time = *std::min_element(trial_times.begin(), trial_times.end()); 
-  std::cout << "MIN Exection time after " << n_trials << " trials = " << min_time*1000 << "ms" << std::endl;
-  std::cout << "AVG Exection time after " << n_trials << " trials = " << avg_time*1000 << "ms" << std::endl;
-
-*/
-  // OPENCL HOST CODE AREA END
-  bool match_fpga1 = check(stage2_out_gt, stage2_out.data(), CFG::seqlen, CFG::dmodel);
- 
-  std::cout << "TEST FPGA1" << (match_fpga1 ? "PASSED" : "FAILED") << std::endl;
-/*
-  std::cout << "Ground truth" << std::endl;
-  printmat(stage4_out_gt, 10,1);
-
-  std::cout << "Test"<<std::endl;
-  printmat(stage4_dense_out.data(), 10,1);
- */ 
-
-  // Compare the results of the Device to the simulation
-  bool match = check(stage4_out_gt, stage4_dense_out.data(), CFG::seqlen, CFG::dmodel);
-
-  std::cout << "TEST FPGA2" << (match ? "PASSED" : "FAILED") << std::endl;
-
-  return (match ? EXIT_SUCCESS : EXIT_FAILURE);
+    return (match ? EXIT_SUCCESS : EXIT_FAILURE);
 }
 
