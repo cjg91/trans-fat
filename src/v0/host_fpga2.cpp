@@ -70,6 +70,7 @@ int main(int argc, char **argv) {
     s3_args.dense_acc_scale = 0.004;
     s3_args.M_stage3 = 0.3;
 
+    genmat(s3_args.fc_in, CFG::seqlen, CFG::dmodel, 21);
     genmat(s3_args.dense_weight_t, CFG::dmodel, CFG::ffdim, 13);
     genmat(s3_args. dense_bias, 1, CFG::ffdim, 71);
 
@@ -108,6 +109,7 @@ int main(int argc, char **argv) {
     {
         s4_args.dense_out[i] = rand() % 32767;
     }
+    std::fill(stage4_dense_out.begin(), stage4_dense_out.end(), 0);
 
     //printmat(stage4_out_gt, CFG::seqlen, CFG::dmodel);
 
