@@ -137,6 +137,22 @@ void stage4_gt(int8_t *fc_in, int8_t *skip_conn, float M_residual, int8_t *dense
 
 /**** ^^ SW Ground Truth Above ^^ ****/
 
+
+int16_t requant_out(int32_t ob, int8_t sb, float Md, float Mr)
+{
+    int8_t out8 = int8_t(ob * Md) + sb;
+    return int16_t(out8 * Mr);        
+}
+
+void write_out(int it, int jt, int32_t out_block[TILE_SIZE4][TILE_SIZE4], int8_t skip_buff[TILE_SIZE4][TILE_SIZE4], float Md, float Mr, int16_t *out)
+{
+    for (int i = 0; i < TILE_SIZE4; ++i){
+        for (int j = 0; j < TILE_SIZE4; ++j){
+            out[(it * TILE_SIZE4 + i) * CFG::dmodel + jt * TILE_SIZE4 + j] = requant_out(out_block[i][j], skip_buff[i][j], Md, Mr);
+        }
+     }
+}
+
 void linear_fused(int8_t* A, int8_t* B, int32_t* bias, int16_t* out, int8_t* skip_conn, float M_dense, float M_residual) {
     
         // buffers for tile mmult
@@ -144,12 +160,17 @@ void linear_fused(int8_t* A, int8_t* B, int32_t* bias, int16_t* out, int8_t* ski
     int8_t skip_buff[TILE_SIZE4][TILE_SIZE4];
     int8_t B_line[TILE_SIZE4];
 
+    #pragma HLS array_partition dim=2 complete variable=out_block
+    //#pragma HLS array_partition dim=1 factor=32 variable=out_block
+    #pragma HLS array_partition dim=1 complete variable=B_line
+
     for (int it = 0; it < CFG::seqlen/TILE_SIZE4; ++it)
     {
         for (int jt = 0; jt < CFG::dmodel/TILE_SIZE4; ++jt)
         {
             // initialize output with bias
             for (int i = 0; i < TILE_SIZE4; ++i){
+                #pragma HLS PIPELINE II=1
                 for (int j = 0; j < TILE_SIZE4; ++j){
                     out_block[i][j] = bias[jt*TILE_SIZE4 + j];
                     skip_buff[i][j] = skip_conn[(it * TILE_SIZE4 + i) * CFG::dmodel + jt * TILE_SIZE4 + j];
@@ -166,21 +187,19 @@ void linear_fused(int8_t* A, int8_t* B, int32_t* bias, int16_t* out, int8_t* ski
                     }
 
                     for (int i = 0; i < TILE_SIZE4; ++i){
+                        //#pragma HLS unroll factor=4
+                        #pragma HLS PIPELINE II=1
                         int8_t Ai = A[(it * TILE_SIZE4 + i) * CFG::ffdim + kt * TILE_SIZE4 + k];
                         for (int j = 0; j < TILE_SIZE4; ++j){
+                            #pragma HLS unroll complete
                             out_block[i][j] += Ai * B_line[j];
                         }
                     }
                 }
             }
-
-            for (int i = 0; i < TILE_SIZE4; ++i){
-                for (int j = 0; j < TILE_SIZE4; ++j){
-                    int8_t out8 = int8_t(out_block[i][j] * M_dense) + skip_buff[i][j];
-                    out[(it * TILE_SIZE4 + i) * CFG::dmodel + jt * TILE_SIZE4 + j] = int16_t(out8 * M_residual);
-                }
-            }
             
+            write_out(it, jt, out_block, skip_buff, M_dense, M_residual, out);
+           
         }
         
     }

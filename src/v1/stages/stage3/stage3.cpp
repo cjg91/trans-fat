@@ -150,6 +150,10 @@ void linear_fused(int8_t *A, int8_t *B, int32_t *bias, int8_t *out, float M_gelu
     int32_t out_block[TILE_SIZE][TILE_SIZE];
     int8_t B_line[TILE_SIZE];
 
+    #pragma HLS array_partition dim=2 complete variable=out_block
+    //#pragma HLS array_partition dim=1 type=cyclic factor=32 variable=out_block
+    #pragma HLS array_partition dim=1 complete variable=B_line
+
     for (int it = 0; it < CFG::seqlen/TILE_SIZE; ++it)
     {
         for (int jt = 0; jt < CFG::ffdim/TILE_SIZE; ++jt)
@@ -157,6 +161,7 @@ void linear_fused(int8_t *A, int8_t *B, int32_t *bias, int8_t *out, float M_gelu
             // initialize output with bias
             for (int i = 0; i < TILE_SIZE; ++i){
                 for (int j = 0; j < TILE_SIZE; ++j){
+                    #pragma HLS unroll
                     out_block[i][j] = bias[jt*TILE_SIZE + j];
                 }
             }
@@ -165,14 +170,18 @@ void linear_fused(int8_t *A, int8_t *B, int32_t *bias, int8_t *out, float M_gelu
             {
                 for (int k = 0; k < TILE_SIZE; ++k)
                 {
+                    
                     // read B values into vector
                     for (int j = 0; j < TILE_SIZE; ++j){
                         B_line[j] = B[(kt * TILE_SIZE + k) * CFG::ffdim + jt * TILE_SIZE + j];
                     }
 
                     for (int i = 0; i < TILE_SIZE; ++i){
+                        //#pragma HLS unroll factor=4
+                        #pragma HLS PIPELINE II=1
                         int8_t Ai = A[(it * TILE_SIZE + i) * CFG::dmodel + kt * TILE_SIZE + k];
                         for (int j = 0; j < TILE_SIZE; ++j){
+                            #pragma HLS unroll complete
                             out_block[i][j] += Ai * B_line[j];
                             
                         }
@@ -182,6 +191,7 @@ void linear_fused(int8_t *A, int8_t *B, int32_t *bias, int8_t *out, float M_gelu
 
             // apply gelu and write output
             for (int i = 0; i < TILE_SIZE; ++i){
+                #pragma HLS PIPELINE II=1
                 for (int j = 0; j < TILE_SIZE; ++j){
                     out[(it * TILE_SIZE + i) * CFG::ffdim + jt * TILE_SIZE + j] = gelu_fused(out_block[i][j], M_gelu, M_stage3, b_int, c_int, shift_int);
                 }
