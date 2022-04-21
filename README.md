@@ -12,10 +12,20 @@ Quantized BERT (RoBERTa) implementation is in `bert_sw/src/quant_roberta.py`. Th
 
 Quantized RoBERTa accuracy test is in `bert_sw/test_quant_roberta.ipynb`. Run this to ensure accuracy is high after modifying quantized operations (91% is unquantized validation accuracy).
 
-TODO:
-Implement quantized LayerNorm.
-Implement fake static quantization and static quantized kernels.
-Generate ground truth for every operation and for entire layer.
+## Instructions
+TODO
 
+## Optimization Versions
+
+### v0
+- None
+
+### v1
+- Memory optimizations
+    - wider ports
+    - multiple parallel ports
+
+
+### v2
 
 
