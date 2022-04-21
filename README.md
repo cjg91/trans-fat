@@ -21,11 +21,16 @@ TODO
 - None
 
 ### v1
-- Memory optimizations
-    - wider ports
-    - multiple parallel ports
+- Linear layer tiling
+- buffering of input and output data
+- unrolling of multiplication inner loops
 
-
+#### Results
+```
+MIN Exection time after 100 trials = 120.92ms
+AVG Exection time after 100 trials = 120.938ms
+TEST PASSED
+```
 ### v2
 
 
