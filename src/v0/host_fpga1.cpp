@@ -116,6 +116,9 @@ int main(int argc, char **argv) {
 
     /********* SW Ground Truth *********/
     fpga1_gt(s1_args, s2_args);
+    
+    // Double double check 
+    std::fill(stage2_out.begin(), stage2_out.end(), 0);
 
   // OPENCL HOST CODE AREA START
   // get_xil_devices() is a utility API which will find the xilinx
