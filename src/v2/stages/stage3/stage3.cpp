@@ -128,7 +128,7 @@ int8_t gelu_fused(int32_t gelu_in, float scaling_factor, float M_stage3, int b_i
 
 }
 
-void linear_fused(int8_t *A, int8_t *B, int32_t *bias, int8_t *out, float M_gelu, float M_stage3)
+void linear_fused(int8_t *A_T, int8_t *B, int32_t *bias, int8_t *out, float M_gelu, float M_stage3)
 {
     // compute fused gelu constants
     const float k = 1.4142;
@@ -149,6 +149,7 @@ void linear_fused(int8_t *A, int8_t *B, int32_t *bias, int8_t *out, float M_gelu
     // buffers for tile mmult
     int32_t out_block[TILE_SIZE][TILE_SIZE];
     int8_t B_line[TILE_SIZE];
+    int8_t A_T_line[TILE_SIZE];
 
     #pragma HLS array_partition dim=2 complete variable=out_block
     //#pragma HLS array_partition dim=1 type=cyclic factor=32 variable=out_block
@@ -175,11 +176,14 @@ void linear_fused(int8_t *A, int8_t *B, int32_t *bias, int8_t *out, float M_gelu
                     for (int j = 0; j < TILE_SIZE; ++j){
                         B_line[j] = B[(kt * TILE_SIZE + k) * CFG::ffdim + jt * TILE_SIZE + j];
                     }
+                    for (int i = 0; i < TILE_SIZE; ++i) {
+                        A_T_line[i] = A_T[(kt * TILE_SIZE + k) * CFG::seqlen + it * TILE_SIZE + i];
+                    }
 
                     for (int i = 0; i < TILE_SIZE; ++i){
                         //#pragma HLS unroll factor=4
                         #pragma HLS PIPELINE II=1
-                        int8_t Ai = A[(it * TILE_SIZE + i) * CFG::dmodel + kt * TILE_SIZE + k];
+                        int8_t Ai = A_T_line[i];
                         for (int j = 0; j < TILE_SIZE; ++j){
                             #pragma HLS unroll complete
                             out_block[i][j] += Ai * B_line[j];
