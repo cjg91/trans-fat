@@ -215,29 +215,46 @@ void layernorm_fused(int16_t *act, int8_t *out, int16_t *norm_weight, int16_t *n
         // calculate constant for std computation
     const int16_t C = int16_t(CFG::eps / scaling_factor);
 
+    int16_t row[CFG::dmodel];
+    int16_t norm_weight_buf[CFG::dmodel];
+    int16_t norm_bias_buf[CFG::dmodel];
+
+    #pragma HLS array_partition dim=1 cyclic factor=32 variable=row
+    #pragma HLS array_partition dim=1 cyclic factor=32 variable=row
+    #pragma HLS array_partition dim=1 cyclic factor=32 variable=row
+
     // for some reason rn if I fuse this int the next loops it doesn't work
     // we'll want to probably break these up and pipeline anyway so leaving for now
+    for (int j = 0; j < CFG::dmodel; ++j) {
+        norm_weight_buf[j] = norm_weight[j];
+        norm_bias_buf[j] = norm_bias[j];
+    }
+
     for (int i = 0; i < CFG::seqlen; ++i){
         int32_t macc = 0;
         for (int j = 0; j < CFG::dmodel; ++j){
-            macc += act[i * CFG::dmodel + j];
+#pragma HLS unroll factor=32
+            int16_t rowval = act[i * CFG::dmodel + j];
+            row[j] = rowval;
+            macc += rowval;
         }
         int16_t m = int16_t(macc/CFG::dmodel);
         for (int j = 0; j < CFG::dmodel; ++j){  
-            act[i*CFG::dmodel + j] = act[i*CFG::dmodel + j] - m;
+#pragma HLS unroll factor=32
+            row[j] -= m;
         }
-    } 
 
-    for (int i = 0; i < CFG::seqlen; ++i){
         int16_t acc16 = 0;
         for (int j = 0; j < CFG::dmodel; ++j){
-            acc16 += int16_t(act[i * CFG::dmodel + j]*int32_t(act[i * CFG::dmodel + j])/CFG::dmodel);
+#pragma HLS unroll factor=32
+            acc16 += int16_t(row[j]*int32_t(row[j])/CFG::dmodel);
         }
         int16_t stdev = int16_t(sqrt(float(acc16 + C)));
 
         for (int j = 0; j < CFG::dmodel; ++j){
-            act[i * CFG::dmodel + j] /= stdev;
-            int16_t acc16 = int16_t((act[i * CFG::dmodel + j] * norm_weight[j] + norm_bias[j]) * scaling_factor);
+#pragma HLS unroll factor=32
+            row[j] /= stdev;
+            int16_t acc16 = int16_t((row[j] * norm_weight_buf[j] + norm_bias_buf[j]) * scaling_factor);
             out[i * CFG::dmodel + j] = int8_t(acc16 * M_stage);
         }
     }
