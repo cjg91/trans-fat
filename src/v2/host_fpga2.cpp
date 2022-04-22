@@ -63,12 +63,20 @@ int main(int argc, char **argv) {
 	std::vector<int8_t, aligned_allocator<int8_t>> fc3_to_fc4_buff(CFG::seqlen*CFG::ffdim);
 
     stage3_args_t s3_args;
-    s3_args.fc_in = stage3_fc_in.data();
+    s3_args.fc_in = new int8_t[CFG::seqlen*CFG::dmodel];
     
     s3_args.dense_weight_t = stage3_dense_weight_t.data();
     s3_args.dense_bias = stage3_dense_bias.data();
     s3_args.dense_acc_scale = 0.004;
     s3_args.M_stage3 = 0.3;
+
+    genmat(s3_args.fc_in, CFG::seqlen, CFG::dmodel, 5);
+
+    for (int i = 0; i < CFG::dmodel; ++i) {
+        for (int j = 0; j < CFG::seqlen; ++j) {
+            stage3_fc_in.data()[i*CFG::seqlen+j] = stage3_args.fc_in[j*CFG::dmodel+i];
+        }
+    }
 
     genmat(s3_args.dense_weight_t, CFG::dmodel, CFG::ffdim, 13);
     genmat(s3_args. dense_bias, 1, CFG::ffdim, 71);

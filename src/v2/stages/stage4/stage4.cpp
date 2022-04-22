@@ -153,7 +153,7 @@ void write_out(int it, int jt, int32_t out_block[TILE_SIZE4][TILE_SIZE4_J], int8
      }
 }
 
-void linear_fused(int8_t* A_T, int8_t* B, int32_t* bias, int16_t* out, int8_t* skip_conn, float M_dense, float M_residual) {
+void linear_fused(int8_t* A_T, int8_t* B, int32_t* bias, int16_t* out, int8_t* skip_conn_T, float M_dense, float M_residual) {
     
         // buffers for tile mmult
     int32_t out_block[TILE_SIZE4][TILE_SIZE4_J];
@@ -166,6 +166,8 @@ void linear_fused(int8_t* A_T, int8_t* B, int32_t* bias, int16_t* out, int8_t* s
     #pragma HLS array_partition dim=1 complete variable=B_line
     #pragma HLS array_partition dim=1 complete variable=A_T_line
 
+    // TODO: Can we read skip_conn_T contiguously from memory to fill skip_buff?
+    
     for (int it = 0; it < CFG::seqlen/TILE_SIZE4; ++it)
     {
         for (int jt = 0; jt < CFG::dmodel/TILE_SIZE4_J; ++jt)
@@ -175,7 +177,7 @@ void linear_fused(int8_t* A_T, int8_t* B, int32_t* bias, int16_t* out, int8_t* s
                 #pragma HLS PIPELINE II=1
                 for (int j = 0; j < TILE_SIZE4_J; ++j){
                     out_block[i][j] = bias[jt*TILE_SIZE4_J + j];
-                    skip_buff[i][j] = skip_conn[(it * TILE_SIZE4 + i) * CFG::dmodel + jt * TILE_SIZE4_J + j];
+                    skip_buff[i][j] = skip_conn_T[(jt * TILE_SIZE4_J + j) * CFG::seqlen + it * TILE_SIZE4 + i];
                 }
             }
 

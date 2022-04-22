@@ -44,6 +44,7 @@ int main()
     int8_t* fc_in = new int8_t[CFG::seqlen * CFG::ffdim];
     int8_t* fc_in_T = new int8_t[CFG::seqlen * CFG::ffdim];
     int8_t* skip_conn = new int8_t[CFG::seqlen * CFG::dmodel];
+    int8_t* skip_conn_T = new int8_t[CFG::seqlen * CFG::dmodel]; 
     int8_t* dense_weight_t = new int8_t[CFG::ffdim * CFG::dmodel];
     int32_t* dense_bias = new int32_t[CFG::dmodel];
     int16_t* norm_weight = new int16_t[CFG::dmodel];
@@ -62,18 +63,24 @@ int main()
         }
     }
 
+    for (int i = 0; i < CFG::dmodel; ++i) {
+        for (int j = 0; j < CFG::seqlen; ++j) {
+            skip_conn_T[i*CFG::seqlen + j] = skip_conn[j*CFG::dmodel+ i];
+        }
+    }
+
     float M_residual = 2;
-    float M_dense_acc = 0.04;
-    float M_stage4 = 0.3;
+    float M_dense_acc = 1;
+    float M_stage4 = 1;
 
     int8_t* dense_out_gt = new int8_t[CFG::seqlen * CFG::dmodel];
     int8_t *dense_out = new int8_t[CFG::seqlen * CFG::dmodel];
 
     stage4_gt(fc_in, skip_conn, M_residual, dense_weight_t, dense_bias, dense_out_gt, M_dense_acc, norm_weight, norm_bias, M_stage4);
-    stage4(fc_in_T, skip_conn, M_residual, dense_weight_t, dense_bias, dense_out, M_dense_acc, norm_weight, norm_bias, M_stage4);
+    stage4(fc_in_T, skip_conn_T, M_residual, dense_weight_t, dense_bias, dense_out, M_dense_acc, norm_weight, norm_bias, M_stage4);
 
     std::cout << "dense_out: " << (check(dense_out_gt, dense_out, CFG::seqlen, CFG::dmodel) ? "PASSED" : "FAILED") << std::endl;
-    printmat(dense_out, CFG::seqlen, CFG::dmodel);
+    //printmat(dense_out, CFG::seqlen, CFG::dmodel);
 
     delete [] fc_in;
     delete [] skip_conn;

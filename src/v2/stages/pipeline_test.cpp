@@ -151,10 +151,6 @@ int main()
     std::cout << "fpga1 out: " << (check(s2_args.out, stage2_test_out, CFG::seqlen, CFG::dmodel) ? "PASSED" : "FAILED") << std::endl;
     std::cout << "fpga2 out: " << (check(s4_args.dense_out, test_out, CFG::seqlen, CFG::dmodel) ? "PASSED" : "FAILED") << std::endl;
 
-    printmat(s4_args.dense_out, 12, 1);
-    printmat(test_out, 12, 1);
-
-
     // memory cleanup
     delete [] s1_args.in;
     delete [] s1_args.query_weight_t;
@@ -169,6 +165,7 @@ int main()
     delete [] s2_args.out;
     delete [] s2_args.norm_weight;
     delete [] s2_args.norm_bias;
+    delete [] s3_fc_in_T;
     delete [] s3_args.dense_weight_t;
     delete [] s3_args.dense_bias;
     delete [] fc3_to_fc4_buff;
