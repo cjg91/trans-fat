@@ -53,21 +53,29 @@ int main() {
     float M_stage3 = 0.3;
 
     int8_t* dense_out_gt = new int8_t[CFG::seqlen * CFG::ffdim];
-    int8_t* dense_out = new int8_t[CFG::seqlen * CFG::ffdim];
+    int8_t* dense_out_test_T = new int8_t[CFG::seqlen * CFG::ffdim];
+    int8_t* dense_out_test = new int8_t[CFG::seqlen * CFG::ffdim];
 
     stage3_gt(fc_in, dense_weight_t, dense_bias, dense_out_gt, dense_acc_scale, M_stage3);
-    stage3(fc_in_T, dense_weight_t, dense_bias, dense_out, dense_acc_scale, M_stage3);
+    stage3(fc_in_T, dense_weight_t, dense_bias, dense_out_test_T, dense_acc_scale, M_stage3);
+
+    for (int i = 0; i < CFG::seqlen; ++i) {
+        for (int j = 0; j < CFG::ffdim; ++j) {
+            dense_out_test[i*CFG::ffdim+j] = dense_out_test_T[j*CFG::seqlen+i];
+        }
+    }
 
     // printmat(dense_out, CFG::seqlen, CFG::ffdim);
     // std::cout << "\n\n\n\n";
     // printmat(dense_out_gt, CFG::seqlen, CFG::ffdim);
 
-    std::cout << "dense_out: " << (check(dense_out, dense_out_gt, CFG::seqlen, CFG::dmodel) ? "PASSED" : "FAILED") << std::endl;
+    std::cout << "dense_out: " << (check(dense_out_test, dense_out_gt, CFG::seqlen, CFG::ffdim) ? "PASSED" : "FAILED") << std::endl;
 
     delete [] fc_in;
     delete [] dense_weight_t;
     delete [] dense_bias;
-    delete [] dense_out;
+    delete [] dense_out_test;
+    delete [] dense_out_test_T;
     delete [] dense_out_gt;
 
     return 0;

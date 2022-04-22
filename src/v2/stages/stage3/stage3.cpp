@@ -128,7 +128,7 @@ int8_t gelu_fused(int32_t gelu_in, float scaling_factor, float M_stage3, int b_i
 
 }
 
-void linear_fused(int8_t *A_T, int8_t *B, int32_t *bias, int8_t *out, float M_gelu, float M_stage3)
+void linear_fused(int8_t *A_T, int8_t *B, int32_t *bias, int8_t *out_T, float M_gelu, float M_stage3)
 {
     // compute fused gelu constants
     const float k = 1.4142;
@@ -198,7 +198,7 @@ void linear_fused(int8_t *A_T, int8_t *B, int32_t *bias, int8_t *out, float M_ge
             for (int i = 0; i < TILE_SIZE; ++i){
                 #pragma HLS PIPELINE II=1
                 for (int j = 0; j < TILE_SIZE_J; ++j){
-                    out[(it * TILE_SIZE + i) * CFG::ffdim + jt * TILE_SIZE_J + j] = gelu_fused(out_block[i][j], M_gelu, M_stage3, b_int, c_int, shift_int);
+                    out_T[(jt * TILE_SIZE_J + j) * CFG::seqlen + it * TILE_SIZE + i] = gelu_fused(out_block[i][j], M_gelu, M_stage3, b_int, c_int, shift_int);
                 }
             }
             
