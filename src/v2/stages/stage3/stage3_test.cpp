@@ -39,9 +39,9 @@ int main() {
     int32_t* dense_bias = new int32_t[CFG::ffdim];
 
     genmat(fc_in, CFG::seqlen, CFG::dmodel, 7);
-    for (int i = 0; i < CFG::seqlen; ++i) {
-        for (int j = 0; j < CFG::dmodel; ++j) {
-            fc_in_T[j*CFG::seqlen+i] = fc_in[i*CFG::dmodel+j];
+    for (int i = 0; i < CFG::dmodel; ++i) {
+        for (int j = 0; j < CFG::seqlen; ++j) {
+            fc_in_T[i*CFG::seqlen+j] = fc_in[j*CFG::dmodel+i];
         }
     }
 

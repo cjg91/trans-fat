@@ -120,8 +120,23 @@ int main()
           s1_args.value_bias, s1_args.M_query, s1_args.M_key, s1_args.M_value, s2_args.out, s2_args.dense_weight_t, s2_args.dense_bias, 
           s2_args.M_attention_probs, s2_args.M_attention_out, s2_args.M_dense_out, s2_args.M_residual, 
           s2_args.norm_weight, s2_args.norm_bias, s2_args.M_stage2);
+    int8_t *stage2_test_out = new int8_t[CFG::seqlen*CFG::dmodel];
+    memcpy(stage2_test_out, s2_args.out, CFG::seqlen*CFG::dmodel);
 
-    fpga2(s3_args.fc_in, s3_args.dense_weight_t, s3_args.dense_bias, s3_args.dense_acc_scale, s3_args.M_stage3,
+    // TODO: Have fpga1 write output already transposed:
+   
+    auto s3_fc_in_T = new int8_t[CFG::seqlen*CFG::dmodel];
+    for (int i = 0; i < CFG::dmodel; ++i) {
+        for (int j = 0; j < CFG::seqlen; ++j) {
+            s3_fc_in_T[i*CFG::seqlen+j] = s2_args.out[j*CFG::dmodel+i];
+        }
+    }
+
+    // transpose input for stage3
+    // stage3 outputs transposed matrix
+    // stage4 accepts transposed matrix
+    // stage4 outputs normal matrix
+    fpga2(s3_fc_in_T, s3_args.dense_weight_t, s3_args.dense_bias, s3_args.dense_acc_scale, s3_args.M_stage3,
           fc3_to_fc4_buff, s4_args.dense_weight_t, s4_args.dense_out, s4_args.dense_bias, s4_args.norm_weight, s4_args.norm_bias,
           s4_args.M_residual, s4_args.M_dense_acc, s4_args.M_stage4);
 
@@ -133,7 +148,12 @@ int main()
     fpga1_gt(s1_args, s2_args);
     fpga2_gt(s3_args, s4_args);
 
-    std::cout << "dense_out: " << (check(s4_args.dense_out, test_out, CFG::seqlen, CFG::dmodel) ? "PASSED" : "FAILED") << std::endl;
+    std::cout << "fpga1 out: " << (check(s2_args.out, stage2_test_out, CFG::seqlen, CFG::dmodel) ? "PASSED" : "FAILED") << std::endl;
+    std::cout << "fpga2 out: " << (check(s4_args.dense_out, test_out, CFG::seqlen, CFG::dmodel) ? "PASSED" : "FAILED") << std::endl;
+
+    printmat(s4_args.dense_out, 12, 1);
+    printmat(test_out, 12, 1);
+
 
     // memory cleanup
     delete [] s1_args.in;

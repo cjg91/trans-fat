@@ -56,9 +56,9 @@ int main()
     genmat(norm_weight, CFG::dmodel, 1, 23);
     genmat(norm_bias, CFG::dmodel, 1, 11);
 
-    for (int i = 0; i < CFG::seqlen; ++i) {
-        for (int j = 0; j < CFG::ffdim; ++j) {
-            fc_in_T[j*CFG::seqlen + i] = fc_in[i*CFG::ffdim + j];
+    for (int i = 0; i < CFG::ffdim; ++i) {
+        for (int j = 0; j < CFG::seqlen; ++j) {
+            fc_in_T[i*CFG::seqlen + j] = fc_in[j*CFG::ffdim + i];
         }
     }
 
@@ -73,6 +73,7 @@ int main()
     stage4(fc_in_T, skip_conn, M_residual, dense_weight_t, dense_bias, dense_out, M_dense_acc, norm_weight, norm_bias, M_stage4);
 
     std::cout << "dense_out: " << (check(dense_out_gt, dense_out, CFG::seqlen, CFG::dmodel) ? "PASSED" : "FAILED") << std::endl;
+    printmat(dense_out, CFG::seqlen, CFG::dmodel);
 
     delete [] fc_in;
     delete [] skip_conn;
