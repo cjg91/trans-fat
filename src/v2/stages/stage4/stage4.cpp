@@ -144,36 +144,38 @@ int16_t requant_out(int32_t ob, int8_t sb, float Md, float Mr)
     return int16_t(out8 * Mr);        
 }
 
-void write_out(int it, int jt, int32_t out_block[TILE_SIZE4][TILE_SIZE4], int8_t skip_buff[TILE_SIZE4][TILE_SIZE4], float Md, float Mr, int16_t *out)
+void write_out(int it, int jt, int32_t out_block[TILE_SIZE4][TILE_SIZE4_J], int8_t skip_buff[TILE_SIZE4][TILE_SIZE4_J], float Md, float Mr, int16_t *out)
 {
     for (int i = 0; i < TILE_SIZE4; ++i){
-        for (int j = 0; j < TILE_SIZE4; ++j){
-            out[(it * TILE_SIZE4 + i) * CFG::dmodel + jt * TILE_SIZE4 + j] = requant_out(out_block[i][j], skip_buff[i][j], Md, Mr);
+        for (int j = 0; j < TILE_SIZE4_J; ++j){
+            out[(it * TILE_SIZE4 + i) * CFG::dmodel + jt * TILE_SIZE4_J + j] = requant_out(out_block[i][j], skip_buff[i][j], Md, Mr);
         }
      }
 }
 
-void linear_fused(int8_t* A, int8_t* B, int32_t* bias, int16_t* out, int8_t* skip_conn, float M_dense, float M_residual) {
+void linear_fused(int8_t* A_T, int8_t* B, int32_t* bias, int16_t* out, int8_t* skip_conn, float M_dense, float M_residual) {
     
         // buffers for tile mmult
-    int32_t out_block[TILE_SIZE4][TILE_SIZE4];
-    int8_t skip_buff[TILE_SIZE4][TILE_SIZE4];
-    int8_t B_line[TILE_SIZE4];
+    int32_t out_block[TILE_SIZE4][TILE_SIZE4_J];
+    int8_t skip_buff[TILE_SIZE4][TILE_SIZE4_J];
+    int8_t B_line[TILE_SIZE4_J];
+    int8_t A_T_line[TILE_SIZE4];
 
     #pragma HLS array_partition dim=2 complete variable=out_block
     //#pragma HLS array_partition dim=1 factor=32 variable=out_block
     #pragma HLS array_partition dim=1 complete variable=B_line
+    #pragma HLS array_partition dim=1 complete variable=A_T_line
 
     for (int it = 0; it < CFG::seqlen/TILE_SIZE4; ++it)
     {
-        for (int jt = 0; jt < CFG::dmodel/TILE_SIZE4; ++jt)
+        for (int jt = 0; jt < CFG::dmodel/TILE_SIZE4_J; ++jt)
         {
             // initialize output with bias
             for (int i = 0; i < TILE_SIZE4; ++i){
                 #pragma HLS PIPELINE II=1
-                for (int j = 0; j < TILE_SIZE4; ++j){
-                    out_block[i][j] = bias[jt*TILE_SIZE4 + j];
-                    skip_buff[i][j] = skip_conn[(it * TILE_SIZE4 + i) * CFG::dmodel + jt * TILE_SIZE4 + j];
+                for (int j = 0; j < TILE_SIZE4_J; ++j){
+                    out_block[i][j] = bias[jt*TILE_SIZE4_J + j];
+                    skip_buff[i][j] = skip_conn[(it * TILE_SIZE4 + i) * CFG::dmodel + jt * TILE_SIZE4_J + j];
                 }
             }
 
@@ -182,15 +184,18 @@ void linear_fused(int8_t* A, int8_t* B, int32_t* bias, int16_t* out, int8_t* ski
                 for (int k = 0; k < TILE_SIZE4; ++k)
                 {
                     // read B values into vector
-                    for (int j = 0; j < TILE_SIZE4; ++j){
-                        B_line[j] = B[(kt * TILE_SIZE4 + k) * CFG::dmodel + jt * TILE_SIZE4 + j];
+                    for (int j = 0; j < TILE_SIZE4_J; ++j){
+                        B_line[j] = B[(kt * TILE_SIZE4 + k) * CFG::dmodel + jt * TILE_SIZE4_J + j];
+                    }
+                    for (int i = 0; i < TILE_SIZE4; ++i) {
+                        A_T_line[i] = A_T[(kt * TILE_SIZE4 + k) * CFG::seqlen + it * TILE_SIZE4 + i];
                     }
 
                     for (int i = 0; i < TILE_SIZE4; ++i){
                         //#pragma HLS unroll factor=4
                         #pragma HLS PIPELINE II=1
-                        int8_t Ai = A[(it * TILE_SIZE4 + i) * CFG::ffdim + kt * TILE_SIZE4 + k];
-                        for (int j = 0; j < TILE_SIZE4; ++j){
+                        int8_t Ai = A_T_line[i];
+                        for (int j = 0; j < TILE_SIZE4_J; ++j){
                             #pragma HLS unroll complete
                             out_block[i][j] += Ai * B_line[j];
                         }
@@ -206,8 +211,8 @@ void linear_fused(int8_t* A, int8_t* B, int32_t* bias, int16_t* out, int8_t* ski
 }
 
 void layernorm_fused(int16_t *act, int8_t *out, int16_t *norm_weight, int16_t *norm_bias, float scaling_factor, float M_stage)
-{
-    // calculate constant for std computation
+    {
+        // calculate constant for std computation
     const int16_t C = int16_t(CFG::eps / scaling_factor);
 
     // for some reason rn if I fuse this int the next loops it doesn't work

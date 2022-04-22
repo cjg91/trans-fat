@@ -3,6 +3,7 @@
 #include <sys/types.h>
 
 const int TILE_SIZE4 = 128;
+const int TILE_SIZE4_J = 768;
 
 extern "C"
 {

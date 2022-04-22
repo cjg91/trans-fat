@@ -29,7 +29,6 @@ TODO
 - Transpose A matmul input
 - Cache line of A.T
 - Increase tile size in j dimension 
-- Buffer data between stages on-chip
 
 ### v3
 - Stream
