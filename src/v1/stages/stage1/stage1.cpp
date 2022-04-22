@@ -117,8 +117,7 @@ void linear_fused(int8_t* A, int8_t* B, int32_t* bias, int8_t* out, const float 
 
 extern "C" {
 void stage1(int8_t *in, int8_t *query_out, int8_t *key_out, int8_t *value_out, int8_t *query_weight_t, int32_t *query_bias, int8_t *key_weight_t, int32_t *key_bias, int8_t *value_weight_t, int32_t *value_bias, float M_query, float M_key, float M_value)
-{
-    #pragma HLS dataflow
+{   
     linear_fused(in, query_weight_t, query_bias, query_out, M_query);
     linear_fused(in, key_weight_t, key_bias, key_out, M_key);
     linear_fused(in, value_weight_t, value_bias, value_out, M_value);
