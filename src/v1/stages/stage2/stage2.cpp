@@ -305,25 +305,27 @@ void attention_scores_fused(int8_t* query, int8_t* key, int8_t* out, const int s
 
     int32_t divisor = std::sqrt(CFG::dmodel);
     int32_t rowbuff[CFG::seqlen];
+    #pragma HLS array_partition dim=1 complete variable=rowbuff
 
-    for (int n = 0; n < nhead; n++) {
+    for (int n = 0; n < CFG::nhead; n++) {
         // compute matmul NHEAD times
-        for (int i = 0; i < seqlen; i++) {
-            for (int j = 0; j < seqlen; j++) {
-                int32_t accum = 0;
-                for (int k = 0; k < dhead; k++) {
-                        // accum += query[n,i,k] * key[n, k, j]
-                        accum += query[i*nhead*dhead +n*dhead + k] * key[j*nhead*dhead + n*dhead + k];
+        for (int i = 0; i < CFG::seqlen; i++) {
+            for (int j = 0; j < CFG::seqlen; j++) {
+            #pragma HLS pipeline
+                for (int k = 0; k < CFG::dhead; k++) {
+                    #pragma HLS unroll
+                    // accum += query[n,i,k] * key[n, k, j]
+                    rowbuff[j] += query[i*CFG::nhead*CFG::dhead +n*CFG::dhead + k] * key[j*CFG::nhead*CFG::dhead + n*CFG::dhead + k];
                 }
                 // out[n,i,j] = accum
-                rowbuff[j] = accum / divisor;
+                rowbuff[j] /= divisor;
             }
-            softmax_fused(rowbuff, out, n*seqlen*seqlen + i*seqlen, M_attention_probs);
+            softmax_fused(rowbuff, out, n*CFG::seqlen*CFG::seqlen + i*CFG::seqlen, M_attention_probs);
         }
     }
 }
 
-void attention_values_fused(int8_t* probs, int8_t* value, int8_t* attn_out, const int seqlen, const int nhead, const int dhead, float M_attention_out) {
+void attention_values_fused(int8_t* probs, int8_t* value, int8_t* attn_out, float M_attention_out) {
 
     /**
      * probs: <nhead, seqlen, seqlen>
@@ -338,16 +340,17 @@ void attention_values_fused(int8_t* probs, int8_t* value, int8_t* attn_out, cons
      * 
     */
 
-   for (int n = 0; n < nhead; n++) {
-       for (int i = 0; i < seqlen; i++) {
-           for (int j = 0; j < dhead; j++) {
+   for (int n = 0; n < CFG::nhead; n++) {
+       for (int i = 0; i < CFG::seqlen; i++) {
+           for (int j = 0; j < CFG::dhead; j++) {
+               #pragma HLS pipeline
                int32_t accum = 0;
-               for (int k = 0; k < seqlen; k++) {
+               for (int k = 0; k < CFG::seqlen; k++) {
                    // attn_out[n][i][j] += probs[n][i][k] * value[n][k][j]
-                    accum += probs[n*seqlen*seqlen + i*seqlen + k] * value[k*nhead*dhead +n*dhead + j];
+                    accum += probs[n*CFG::seqlen*CFG::seqlen + i*CFG::seqlen + k] * value[k*CFG::nhead*CFG::dhead +n*CFG::dhead + j];
                }
                // writes to attn_out to obtain <seqlen, dmodel> shape
-               attn_out[i*nhead*dhead + n*dhead + j] = int8_t(accum * M_attention_out);
+               attn_out[i*CFG::nhead*CFG::dhead + n*CFG::dhead + j] = int8_t(accum * M_attention_out);
            }
        }
    }
@@ -462,7 +465,7 @@ void stage2(int8_t* query_in, int8_t* key_in, int8_t* value_in, int8_t* skip_in,
     // attention, scale, softmax, and requantize
     attention_scores_fused(query_in, key_in, att_scores_buff, CFG::seqlen, CFG::nhead, CFG::dhead, M_attention_probs);
     // values, requantize
-    attention_values_fused(att_scores_buff, value_in, att_out_buff, CFG::seqlen, CFG::nhead, CFG::dhead, M_attention_out);
+    attention_values_fused(att_scores_buff, value_in, att_out_buff, M_attention_out);
     // linear, requantize, residual, requantize
     linear_fused2(att_out_buff, dense_weight_t, dense_bias, lin_buff, skip_in, M_dense_out, M_residual);
     // layernorm, requantize

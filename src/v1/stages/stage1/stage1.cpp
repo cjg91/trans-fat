@@ -60,26 +60,14 @@ void stage1_gt(int8_t* in, int8_t* query_out, int8_t* key_out, int8_t* value_out
     out: NxM
     Bias: 1xM
 */
-void linear_fused(int8_t *A,
-                  int8_t *qB, int32_t *qbias, int8_t *qout,
-                  int8_t *kB, int32_t *kbias, int8_t *kout,
-                  int8_t *vB, int32_t *vbias, int8_t *vout,
-                  const float Mq, const float Mk, const float Mv)
+void linear_fused(int8_t* A, int8_t* B, int32_t* bias, int8_t* out, const float M_scale) 
 {
     // buffers for tile mmult
-    int32_t qout_block[TILE_SIZE1][TILE_SIZE1];
-    int32_t kout_block[TILE_SIZE1][TILE_SIZE1];
-    int32_t vout_block[TILE_SIZE1][TILE_SIZE1];
-    int8_t qB_line[TILE_SIZE1];
-    int8_t kB_line[TILE_SIZE1];
-    int8_t vB_line[TILE_SIZE1];
+    int32_t out_block[TILE_SIZE1][TILE_SIZE1];
+    int8_t B_line[TILE_SIZE1];
 
-    #pragma HLS array_partition dim=2 complete variable=qout_block
-    #pragma HLS array_partition dim=1 complete variable=qB_line
-    #pragma HLS array_partition dim=2 complete variable=kout_block
-    #pragma HLS array_partition dim=1 complete variable=kB_line
-    #pragma HLS array_partition dim=2 complete variable=vout_block
-    #pragma HLS array_partition dim=1 complete variable=vB_line
+    #pragma HLS array_partition dim=2 complete variable=out_block
+    #pragma HLS array_partition dim=1 complete variable=B_line
 
     for (int it = 0; it < CFG::seqlen/TILE_SIZE1; ++it)
     {
@@ -89,9 +77,7 @@ void linear_fused(int8_t *A,
             for (int i = 0; i < TILE_SIZE1; ++i){
                 for (int j = 0; j < TILE_SIZE1; ++j){
                     #pragma HLS unroll
-                    qout_block[i][j] = qbias[jt * TILE_SIZE1 + j];
-                    kout_block[i][j] = kbias[jt * TILE_SIZE1 + j];
-                    vout_block[i][j] = vbias[jt * TILE_SIZE1 + j];
+                    out_block[i][j] = bias[jt*TILE_SIZE1 + j];
                 }
             }
 
@@ -102,19 +88,16 @@ void linear_fused(int8_t *A,
                     
                     // read B values into vector
                     for (int j = 0; j < TILE_SIZE1; ++j){
-                        qB_line[j] = qB[(kt * TILE_SIZE1 + k) * CFG::dmodel + jt * TILE_SIZE1 + j];
-                        kB_line[j] = kB[(kt * TILE_SIZE1 + k) * CFG::dmodel + jt * TILE_SIZE1 + j];
-                        vB_line[j] = vB[(kt * TILE_SIZE1 + k) * CFG::dmodel + jt * TILE_SIZE1 + j];
+                        B_line[j] = B[(kt * TILE_SIZE1 + k) * CFG::dmodel + jt * TILE_SIZE1 + j];
                     }
 
                     for (int i = 0; i < TILE_SIZE1; ++i){
                         #pragma HLS PIPELINE II=1
                         int8_t Ai = A[(it * TILE_SIZE1 + i) * CFG::dmodel + kt * TILE_SIZE1 + k];
                         for (int j = 0; j < TILE_SIZE1; ++j){
-                            #pragma HLS unroll complete
-                            qout_block[i][j] += Ai * qB_line[j];
-                            kout_block[i][j] += Ai * kB_line[j];
-                            vout_block[i][j] += Ai * vB_line[j];
+                            #pragma HLS unroll
+                            out_block[i][j] += Ai * B_line[j];
+                            
                         }
                     }
                 }
@@ -123,9 +106,7 @@ void linear_fused(int8_t *A,
             for (int i = 0; i < TILE_SIZE1; ++i){
                 #pragma HLS PIPELINE II=1
                 for (int j = 0; j < TILE_SIZE1; ++j){
-                    qout[(it * TILE_SIZE1 + i) * CFG::dmodel + jt * TILE_SIZE1 + j] = int8_t(qout_block[i][j] * Mq);
-                    kout[(it * TILE_SIZE1 + i) * CFG::dmodel + jt * TILE_SIZE1 + j] = int8_t(kout_block[i][j] * Mk);
-                    vout[(it * TILE_SIZE1 + i) * CFG::dmodel + jt * TILE_SIZE1 + j] = int8_t(vout_block[i][j] * Mv);
+                    out[(it * TILE_SIZE1 + i) * CFG::dmodel + jt * TILE_SIZE1 + j] = int8_t(out_block[i][j] * M_scale);
                 }
             }
             
@@ -137,10 +118,9 @@ void linear_fused(int8_t *A,
 extern "C" {
 void stage1(int8_t *in, int8_t *query_out, int8_t *key_out, int8_t *value_out, int8_t *query_weight_t, int32_t *query_bias, int8_t *key_weight_t, int32_t *key_bias, int8_t *value_weight_t, int32_t *value_bias, float M_query, float M_key, float M_value)
 {
-    linear_fused(in,
-                 query_weight_t, query_bias, query_out,
-                 key_weight_t, key_bias, key_out,
-                 value_weight_t, value_bias, value_out,
-                 M_query, M_key, M_value);
+    #pragma HLS dataflow
+    linear_fused(in, query_weight_t, query_bias, query_out, M_query);
+    linear_fused(in, key_weight_t, key_bias, key_out, M_key);
+    linear_fused(in, value_weight_t, value_bias, value_out, M_value);
 }
 }
