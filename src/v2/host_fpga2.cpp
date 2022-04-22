@@ -74,7 +74,7 @@ int main(int argc, char **argv) {
 
     for (int i = 0; i < CFG::dmodel; ++i) {
         for (int j = 0; j < CFG::seqlen; ++j) {
-            stage3_fc_in.data()[i*CFG::seqlen+j] = stage3_args.fc_in[j*CFG::dmodel+i];
+            stage3_fc_in.data()[i*CFG::seqlen+j] = s3_args.fc_in[j*CFG::dmodel+i];
         }
     }
 

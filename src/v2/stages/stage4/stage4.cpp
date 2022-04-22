@@ -235,7 +235,6 @@ void layernorm_fused(int16_t *act, int8_t *out, int16_t *norm_weight, int16_t *n
     for (int i = 0; i < CFG::seqlen; ++i){
         int32_t macc = 0;
         for (int j = 0; j < CFG::dmodel; ++j){
-#pragma HLS unroll factor=32
             int16_t rowval = act[i * CFG::dmodel + j];
             row[j] = rowval;
             macc += rowval;
@@ -248,7 +247,6 @@ void layernorm_fused(int16_t *act, int8_t *out, int16_t *norm_weight, int16_t *n
 
         int16_t acc16 = 0;
         for (int j = 0; j < CFG::dmodel; ++j){
-#pragma HLS unroll factor=32
             acc16 += int16_t(row[j]*int32_t(row[j])/CFG::dmodel);
         }
         int16_t stdev = int16_t(sqrt(float(acc16 + C)));
