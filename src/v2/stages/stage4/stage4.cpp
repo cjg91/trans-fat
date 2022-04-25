@@ -164,7 +164,6 @@ void linear_fused(int8_t* A_T, int8_t* B, int32_t* bias, int16_t* out, int8_t* s
     #pragma HLS array_partition dim=2 complete variable=out_block
     //#pragma HLS array_partition dim=1 factor=32 variable=out_block
     #pragma HLS array_partition dim=1 complete variable=B_line
-    #pragma HLS array_partition dim=1 complete variable=A_T_line
 
     // TODO: Can we read skip_conn_T contiguously from memory to fill skip_buff?
     
@@ -174,7 +173,6 @@ void linear_fused(int8_t* A_T, int8_t* B, int32_t* bias, int16_t* out, int8_t* s
         {
             // initialize output with bias
             for (int i = 0; i < TILE_SIZE4; ++i){
-                #pragma HLS PIPELINE II=1
                 for (int j = 0; j < TILE_SIZE4_J; ++j){
                     out_block[i][j] = bias[jt*TILE_SIZE4_J + j];
                     skip_buff[i][j] = skip_conn_T[(jt * TILE_SIZE4_J + j) * CFG::seqlen + it * TILE_SIZE4 + i];
@@ -198,17 +196,14 @@ void linear_fused(int8_t* A_T, int8_t* B, int32_t* bias, int16_t* out, int8_t* s
                         #pragma HLS PIPELINE II=1
                         int8_t Ai = A_T_line[i];
                         for (int j = 0; j < TILE_SIZE4_J; ++j){
-                            #pragma HLS unroll complete
+                            #pragma HLS unroll
                             out_block[i][j] += Ai * B_line[j];
                         }
                     }
                 }
             }
-            
             write_out(it, jt, out_block, skip_buff, M_dense, M_residual, out);
-           
         }
-        
     }
 }
 
@@ -221,9 +216,9 @@ void layernorm_fused(int16_t *act, int8_t *out, int16_t *norm_weight, int16_t *n
     int16_t norm_weight_buf[CFG::dmodel];
     int16_t norm_bias_buf[CFG::dmodel];
 
-    #pragma HLS array_partition dim=1 cyclic factor=32 variable=row
-    #pragma HLS array_partition dim=1 cyclic factor=32 variable=row
-    #pragma HLS array_partition dim=1 cyclic factor=32 variable=row
+    //#pragma HLS array_partition dim=1 cyclic factor=32 variable=row
+    //#pragma HLS array_partition dim=1 cyclic factor=32 variable=norm_weight_buf
+    //#pragma HLS array_partition dim=1 cyclic factor=32 variable=norm_bias_buf
 
     // for some reason rn if I fuse this int the next loops it doesn't work
     // we'll want to probably break these up and pipeline anyway so leaving for now
@@ -241,7 +236,7 @@ void layernorm_fused(int16_t *act, int8_t *out, int16_t *norm_weight, int16_t *n
         }
         int16_t m = int16_t(macc/CFG::dmodel);
         for (int j = 0; j < CFG::dmodel; ++j){  
-#pragma HLS unroll factor=32
+//#pragma HLS unroll factor=32
             row[j] -= m;
         }
 
@@ -252,7 +247,7 @@ void layernorm_fused(int16_t *act, int8_t *out, int16_t *norm_weight, int16_t *n
         int16_t stdev = int16_t(sqrt(float(acc16 + C)));
 
         for (int j = 0; j < CFG::dmodel; ++j){
-#pragma HLS unroll factor=32
+//#pragma HLS unroll factor=32
             row[j] /= stdev;
             int16_t acc16 = int16_t((row[j] * norm_weight_buf[j] + norm_bias_buf[j]) * scaling_factor);
             out[i * CFG::dmodel + j] = int8_t(acc16 * M_stage);

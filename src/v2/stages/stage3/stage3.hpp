@@ -3,7 +3,7 @@
 #include <inttypes.h>
 
 const int TILE_SIZE = 128;
-const int TILE_SIZE_J = 512;
+const int TILE_SIZE_J = 128;
 
 extern "C"
 {

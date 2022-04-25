@@ -154,7 +154,6 @@ void linear_fused(int8_t *A_T, int8_t *B, int32_t *bias, int8_t *out_T, float M_
     #pragma HLS array_partition dim=2 complete variable=out_block
     //#pragma HLS array_partition dim=1 type=cyclic factor=32 variable=out_block
     #pragma HLS array_partition dim=1 complete variable=B_line
-    #pragma HLS array_partition dim=1 complete variable=A_T_line
 
     for (int it = 0; it < CFG::seqlen/TILE_SIZE; ++it)
     {
@@ -163,7 +162,6 @@ void linear_fused(int8_t *A_T, int8_t *B, int32_t *bias, int8_t *out_T, float M_
             // initialize output with bias
             for (int i = 0; i < TILE_SIZE; ++i){
                 for (int j = 0; j < TILE_SIZE_J; ++j){
-                    #pragma HLS unroll
                     out_block[i][j] = bias[jt*TILE_SIZE_J + j];
                 }
             }
@@ -186,7 +184,7 @@ void linear_fused(int8_t *A_T, int8_t *B, int32_t *bias, int8_t *out_T, float M_
                         #pragma HLS PIPELINE II=1
                         int8_t Ai = A_T_line[i];
                         for (int j = 0; j < TILE_SIZE_J; ++j){
-                            #pragma HLS unroll complete
+                            #pragma HLS unroll
                             out_block[i][j] += Ai * B_line[j];
                             
                         }
@@ -196,14 +194,11 @@ void linear_fused(int8_t *A_T, int8_t *B, int32_t *bias, int8_t *out_T, float M_
 
             // apply gelu and write output
             for (int i = 0; i < TILE_SIZE; ++i){
-                #pragma HLS PIPELINE II=1
                 for (int j = 0; j < TILE_SIZE_J; ++j){
                     out_T[(jt * TILE_SIZE_J + j) * CFG::seqlen + it * TILE_SIZE + i] = gelu_fused(out_block[i][j], M_gelu, M_stage3, b_int, c_int, shift_int);
                 }
             }
-            
         }
-        
     }
 }
 
