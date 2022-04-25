@@ -311,10 +311,7 @@ void attention_scores_fused(int8_t* query, int8_t* key, int8_t* out, const int s
         // compute matmul NHEAD times
         for (int i = 0; i < CFG::seqlen; i++) {
             for (int j = 0; j < CFG::seqlen; j++) {
-            #pragma HLS pipeline
-                for (int k = 0; k < CFG::dhead; k++) {
-                    #pragma HLS unroll
-                    // accum += query[n,i,k] * key[n, k, j]
+                for (int k = 0; k < CFG::dhead; k++) {                   // accum += query[n,i,k] * key[n, k, j]
                     rowbuff[j] += query[i*CFG::nhead*CFG::dhead +n*CFG::dhead + k] * key[j*CFG::nhead*CFG::dhead + n*CFG::dhead + k];
                 }
                 // out[n,i,j] = accum
@@ -343,7 +340,6 @@ void attention_values_fused(int8_t* probs, int8_t* value, int8_t* attn_out, floa
    for (int n = 0; n < CFG::nhead; n++) {
        for (int i = 0; i < CFG::seqlen; i++) {
            for (int j = 0; j < CFG::dhead; j++) {
-               #pragma HLS pipeline
                int32_t accum = 0;
                for (int k = 0; k < CFG::seqlen; k++) {
                    // attn_out[n][i][j] += probs[n][i][k] * value[n][k][j]
@@ -390,7 +386,7 @@ void linear_fused2(int8_t* A, int8_t* B, int32_t* bias, int16_t* out, int8_t* sk
             // initialize output with bias
             for (int i = 0; i < TILE_SIZE2; ++i){
                 for (int j = 0; j < TILE_SIZE2; ++j){
-                    #pragma HLS unroll
+                    #pragma HLS pipeline II=1 
                     out_block[i][j] = bias[jt * TILE_SIZE2 + j];
                     skip_buff[i][j] = skip_conn[(it * TILE_SIZE2 + i) * CFG::dmodel + jt * TILE_SIZE2 + j];
                 }
@@ -410,7 +406,7 @@ void linear_fused2(int8_t* A, int8_t* B, int32_t* bias, int16_t* out, int8_t* sk
                         #pragma HLS PIPELINE II=1
                         int8_t Ai = A[(it * TILE_SIZE2 + i) * CFG::dmodel + kt * TILE_SIZE2 + k];
                         for (int j = 0; j < TILE_SIZE2; ++j){
-                            #pragma HLS unroll complete
+                            #pragma HLS unroll
                             out_block[i][j] += Ai * B_line[j];
                         }
                     }
