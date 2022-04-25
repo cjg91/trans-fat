@@ -41,7 +41,7 @@ TODO
 <thead>
   <tr>
     <th rowspan="2">Version</th>
-    <th colspan="3">Part</th>
+    <th colspan="3">Latency (ms)</th>
   </tr>
   <tr>
     <th>fpga1</th>
@@ -52,15 +52,15 @@ TODO
 <tbody>
   <tr>
     <td align="center">v0</td>
-    <td></td>
-    <td></td>
-    <td></td>
+    <td>4723.71</td>
+    <td>10950.9</td>
+    <td>15676.3</td>
   </tr>
   <tr>
     <td align="center">v1</td>
-    <td></td>
-    <td></td>
-    <td></td>
+    <td>274.983</td>
+    <td>120.912</td>
+    <td>397.446</td>
   </tr>
   <tr>
     <td align="center">v2</td>
