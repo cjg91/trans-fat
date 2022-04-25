@@ -55,6 +55,7 @@ int main()
     s1_args.M_key = 0.4;
     s1_args.M_value = 0.3;
 
+    auto s1_in_T = new int8_t[CFG::seqlen * CFG::dmodel];
     auto query = new int8_t[CFG::seqlen * CFG::dmodel];
     auto key = new int8_t[CFG::seqlen * CFG::dmodel];
     auto value = new int8_t[CFG::seqlen * CFG::dmodel];
@@ -66,6 +67,13 @@ int main()
     genmat(s1_args.query_bias, 1, CFG::dmodel, 63);
     genmat(s1_args.key_bias, 1, CFG::dmodel, 65);
     genmat(s1_args.value_bias, 1, CFG::dmodel, 67);
+
+    // Transpose input for stage1
+    for (int i = 0; i < CFG::dmodel; ++i) {
+        for (int j = 0; j < CFG::seqlen; ++j) {
+            s1_in_T[i*CFG::seqlen+j] = s1_args.in[j*CFG::dmodel+i];
+        }
+    }
 
     /********** STAGE 2 ARGS ***********/
     stage2_args_t s2_args;
@@ -116,7 +124,7 @@ int main()
     genmat(s4_args.norm_bias, CFG::dmodel, 1, 11);
 
     /*********************** run fpga layer *********************/
-    fpga1(s1_args.in, query, key, value, s1_args.query_weight_t, s1_args.query_bias, s1_args.key_weight_t, s1_args.key_bias, s1_args.value_weight_t,
+    fpga1(s1_in_T, query, key, value, s1_args.query_weight_t, s1_args.query_bias, s1_args.key_weight_t, s1_args.key_bias, s1_args.value_weight_t,
           s1_args.value_bias, s1_args.M_query, s1_args.M_key, s1_args.M_value, s2_args.out, s2_args.dense_weight_t, s2_args.dense_bias, 
           s2_args.M_attention_probs, s2_args.M_attention_out, s2_args.M_dense_out, s2_args.M_residual, 
           s2_args.norm_weight, s2_args.norm_bias, s2_args.M_stage2);

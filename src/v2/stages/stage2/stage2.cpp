@@ -389,7 +389,7 @@ void linear_fused2(int8_t* A, int8_t* B, int32_t* bias, int16_t* out, int8_t* sk
                 for (int j = 0; j < TILE_SIZE2; ++j){
                     #pragma HLS pipeline II=1 
                     out_block[i][j] = bias[jt * TILE_SIZE2 + j];
-                    skip_buff[i][j] = skip_conn[(it * TILE_SIZE2 + i) * CFG::dmodel + jt * TILE_SIZE2 + j];
+                    skip_buff[i][j] = skip_conn[(jt * TILE_SIZE2 + j) * CFG::seqlen + it * TILE_SIZE2 + i];
                 }
             }
 
