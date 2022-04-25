@@ -33,5 +33,4 @@ TODO
 
 ### v3
 - Stream
-- TODO: Remove unnecesasry rowbuf from stage4 layernorm
 
