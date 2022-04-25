@@ -133,8 +133,8 @@ int main() {
     genmat(skip_in, CFG::seqlen, CFG::dmodel, 13);
     genmat(dense_weight_t, CFG::dmodel, CFG::dmodel, 15);
     genmat(dense_bias, 1, CFG::dmodel, 63);
-    genmat(norm_weight, 1, CFG::dmodel, 62);
-    genmat(norm_bias, 1, CFG::dmodel, 69);
+    genmat(norm_weight, 1, CFG::dmodel, 17);
+    genmat(norm_bias, 1, CFG::dmodel, 23);
 
     float M_attention_probs = 100;
     float M_attention_out = .1;

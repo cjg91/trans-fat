@@ -70,8 +70,7 @@ int main() {
     std::cout << "query_out: " << (check(query_out_gt, query_out, CFG::seqlen, CFG::dmodel) ? "PASSED" : "FAILED") << std::endl;
     std::cout << "key_out:   " << (check(key_out_gt, key_out, CFG::seqlen, CFG::dmodel) ? "PASSED" : "FAILED") << std::endl;
     std::cout << "value_out: " << (check(value_out_gt, value_out, CFG::seqlen, CFG::dmodel) ? "PASSED" : "FAILED") << std::endl;
-    
-    printmat(value_out, 1, 10);
+
     delete [] hidden_states;
     delete [] query_weight_t;
     delete [] key_weight_t;
