@@ -129,6 +129,8 @@ int main()
     int8_t *test_out = new int8_t[CFG::seqlen * CFG::dmodel];
     memcpy(test_out, s4_args.dense_out, CFG::seqlen * CFG::dmodel * sizeof(int8_t));
 
+    for (int i = 0; i < CFG::seqlen * CFG::dmodel; ++i) s2_args.out[i] = 0;
+
     /****************** run ground truth layer ******************/
     fpga1_gt(s1_args, s2_args);
     fpga2_gt(s3_args, s4_args);

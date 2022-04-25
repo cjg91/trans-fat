@@ -311,6 +311,7 @@ void attention_scores_fused(int8_t* query, int8_t* key, int8_t* out, const int s
         // compute matmul NHEAD times
         for (int i = 0; i < CFG::seqlen; i++) {
             for (int j = 0; j < CFG::seqlen; j++) {
+                    rowbuff[j] = 0;
                 for (int k = 0; k < CFG::dhead; k++) {                   // accum += query[n,i,k] * key[n, k, j]
                     rowbuff[j] += query[i*CFG::nhead*CFG::dhead +n*CFG::dhead + k] * key[j*CFG::nhead*CFG::dhead + n*CFG::dhead + k];
                 }
