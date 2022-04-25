@@ -1,4 +1,5 @@
 #pragma once
+
 extern "C"
 {
 namespace CFG
