@@ -34,6 +34,7 @@ const bool check(T* A, T* B, const int M, const int N)
 int main() {
 
     int8_t* hidden_states = new int8_t [CFG::seqlen*CFG::dmodel];
+    int8_t* hidden_states_T = new int8_t [CFG::seqlen*CFG::dmodel];
     
     int8_t* query_weight_t = new int8_t [CFG::dmodel*CFG::dmodel];
     int8_t* key_weight_t = new int8_t [CFG::dmodel*CFG::dmodel];
@@ -44,6 +45,12 @@ int main() {
     int32_t* value_bias = new int32_t [CFG::dmodel];
 
     genmat(hidden_states, CFG::seqlen, CFG::dmodel, 7);
+
+    for (int i = 0; i < CFG::dmodel; ++i) {
+        for (int j = 0; j < CFG::seqlen; ++j) {
+           hidden_states_T[i*CFG::seqlen+j] = hidden_states[j*CFG::dmodel + i]; 
+        }
+    }
 
     genmat(query_weight_t, CFG::dmodel, CFG::dmodel, 9);
     genmat(key_weight_t, CFG::dmodel, CFG::dmodel, 11);
@@ -65,7 +72,7 @@ int main() {
     int8_t* value_out = new int8_t[CFG::seqlen * CFG::dmodel];
 
     stage1_gt(hidden_states, query_out_gt, key_out_gt, value_out_gt, query_weight_t, query_bias, key_weight_t, key_bias, value_weight_t, value_bias, M_query, M_key, M_value);
-    stage1(hidden_states, query_out, key_out, value_out, query_weight_t, query_bias, key_weight_t, key_bias, value_weight_t, value_bias, M_query, M_key, M_value);
+    stage1(hidden_states_T, query_out, key_out, value_out, query_weight_t, query_bias, key_weight_t, key_bias, value_weight_t, value_bias, M_query, M_key, M_value);
 
     std::cout << "query_out: " << (check(query_out_gt, query_out, CFG::seqlen, CFG::dmodel) ? "PASSED" : "FAILED") << std::endl;
     std::cout << "key_out:   " << (check(key_out_gt, key_out, CFG::seqlen, CFG::dmodel) ? "PASSED" : "FAILED") << std::endl;

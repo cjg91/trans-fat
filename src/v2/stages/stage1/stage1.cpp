@@ -60,11 +60,12 @@ void stage1_gt(int8_t* in, int8_t* query_out, int8_t* key_out, int8_t* value_out
     out: NxM
     Bias: 1xM
 */
-void linear_fused(int8_t* A, int8_t* B, int32_t* bias, int8_t* out, const float M_scale) 
+void linear_fused(int8_t* A_T, int8_t* B, int32_t* bias, int8_t* out, const float M_scale) 
 {
     // buffers for tile mmult
     int32_t out_block[TILE_SIZE1][TILE_SIZE1];
     int8_t B_line[TILE_SIZE1];
+    int8_t A_line[TILE_SIZE1];
 
     #pragma HLS array_partition dim=2 complete variable=out_block
     #pragma HLS array_partition dim=1 complete variable=B_line
@@ -76,7 +77,6 @@ void linear_fused(int8_t* A, int8_t* B, int32_t* bias, int8_t* out, const float 
             // initialize output with bias
             for (int i = 0; i < TILE_SIZE1; ++i){
                 for (int j = 0; j < TILE_SIZE1; ++j){
-                    #pragma HLS unroll
                     out_block[i][j] = bias[jt*TILE_SIZE1 + j];
                 }
             }
@@ -90,10 +90,13 @@ void linear_fused(int8_t* A, int8_t* B, int32_t* bias, int8_t* out, const float 
                     for (int j = 0; j < TILE_SIZE1; ++j){
                         B_line[j] = B[(kt * TILE_SIZE1 + k) * CFG::dmodel + jt * TILE_SIZE1 + j];
                     }
+                    for (int i = 0; i < TILE_SIZE1; ++i) {
+                        A_line[i] = A_T[(kt * TILE_SIZE1 + k) * CFG::seqlen + it * TILE_SIZE1 + i];
+                    }
 
                     for (int i = 0; i < TILE_SIZE1; ++i){
                         #pragma HLS PIPELINE II=1
-                        int8_t Ai = A[(it * TILE_SIZE1 + i) * CFG::dmodel + kt * TILE_SIZE1 + k];
+                        int8_t Ai = A_line[i];
                         for (int j = 0; j < TILE_SIZE1; ++j){
                             #pragma HLS unroll
                             out_block[i][j] += Ai * B_line[j];
