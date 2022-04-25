@@ -107,7 +107,6 @@ void linear_fused(int8_t* A_T, int8_t* B, int32_t* bias, int8_t* out, const floa
             }
 
             for (int i = 0; i < TILE_SIZE1; ++i){
-                #pragma HLS PIPELINE II=1
                 for (int j = 0; j < TILE_SIZE1; ++j){
                     out[(it * TILE_SIZE1 + i) * CFG::dmodel + jt * TILE_SIZE1 + j] = int8_t(out_block[i][j] * M_scale);
                 }
