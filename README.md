@@ -32,4 +32,5 @@ TODO
 
 ### v3
 - Stream
+- stage1 read A outside linear_fused. Write to A streams. Have each dense matmul read from an A stream and compute its product in parallel.
 
