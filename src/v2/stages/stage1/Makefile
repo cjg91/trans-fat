@@ -6,7 +6,7 @@ header_files = stage1.hpp ../pipeline.hpp ../../config.hpp
 all: stage1_test
 
 stage1_test: $(src_files) $(header_files)
-	g++ -Wall --std=c++14 -o stage1_test $(src_files) -I ../../
+	g++ -Wall --std=c++11 -o stage1_test $(src_files) -I ../../
 
 .PHONY: clean
 

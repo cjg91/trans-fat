@@ -140,6 +140,12 @@ int main()
           fc3_to_fc4_buff, s4_args.dense_weight_t, s4_args.dense_out, s4_args.dense_bias, s4_args.norm_weight, s4_args.norm_bias,
           s4_args.M_residual, s4_args.M_dense_acc, s4_args.M_stage4);
 
+    // clear stage2 output
+    for (int i = 0; i < CFG::seqlen*CFG::dmodel; ++i) 
+    {
+        s2_args.out[i] = 0;
+    }
+
     // save layer output for comparison
     int8_t *test_out = new int8_t[CFG::seqlen * CFG::dmodel];
     memcpy(test_out, s4_args.dense_out, CFG::seqlen * CFG::dmodel * sizeof(int8_t));
