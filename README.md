@@ -34,3 +34,47 @@ TODO
 - Stream
 - stage1 read A outside linear_fused. Write to A streams. Have each dense matmul read from an A stream and compute its product in parallel.
 
+
+## Results
+
+<table align="center">
+<thead>
+  <tr>
+    <th rowspan="2">Version</th>
+    <th colspan="3">Part</th>
+  </tr>
+  <tr>
+    <th>fpga1</th>
+    <th>fpga2</th>
+    <th>all</th>
+  </tr>
+</thead>
+<tbody>
+  <tr>
+    <td align="center">v0</td>
+    <td></td>
+    <td></td>
+    <td></td>
+  </tr>
+  <tr>
+    <td align="center">v1</td>
+    <td></td>
+    <td></td>
+    <td></td>
+  </tr>
+  <tr>
+    <td align="center">v2</td>
+    <td></td>
+    <td></td>
+    <td></td>
+  </tr>
+  <tr>
+    <td align="center">v3</td>
+    <td></td>
+    <td></td>
+    <td></td>
+  </tr>
+</tbody>
+</table>
+
+
