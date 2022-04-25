@@ -212,7 +212,6 @@ void layernorm_fused(int16_t *act, int8_t *out, int16_t *norm_weight, int16_t *n
         // calculate constant for std computation
     const int16_t C = int16_t(CFG::eps / scaling_factor);
 
-    int16_t row[CFG::dmodel];
     int16_t norm_weight_buf[CFG::dmodel];
     int16_t norm_bias_buf[CFG::dmodel];
 
@@ -230,26 +229,24 @@ void layernorm_fused(int16_t *act, int8_t *out, int16_t *norm_weight, int16_t *n
     for (int i = 0; i < CFG::seqlen; ++i){
         int32_t macc = 0;
         for (int j = 0; j < CFG::dmodel; ++j){
-            int16_t rowval = act[i * CFG::dmodel + j];
-            row[j] = rowval;
-            macc += rowval;
+            macc += act[i * CFG::dmodel + j];
         }
         int16_t m = int16_t(macc/CFG::dmodel);
         for (int j = 0; j < CFG::dmodel; ++j){  
-//#pragma HLS unroll factor=32
-            row[j] -= m;
+#pragma HLS unroll factor=32
+            act[i * CFG::dmodel + j] -= m;
         }
 
         int16_t acc16 = 0;
         for (int j = 0; j < CFG::dmodel; ++j){
-            acc16 += int16_t(row[j]*int32_t(row[j])/CFG::dmodel);
+            acc16 += int16_t(act[i * CFG::dmodel + j]*int32_t(act[i * CFG::dmodel + j])/CFG::dmodel);
         }
         int16_t stdev = int16_t(sqrt(float(acc16 + C)));
 
         for (int j = 0; j < CFG::dmodel; ++j){
-//#pragma HLS unroll factor=32
-            row[j] /= stdev;
-            int16_t acc16 = int16_t((row[j] * norm_weight_buf[j] + norm_bias_buf[j]) * scaling_factor);
+#pragma HLS unroll factor=32
+            act[i * CFG::dmodel + j] /= stdev;
+            int16_t acc16 = int16_t((act[i * CFG::dmodel + j]* norm_weight_buf[j] + norm_bias_buf[j]) * scaling_factor);
             out[i * CFG::dmodel + j] = int8_t(acc16 * M_stage);
         }
     }
