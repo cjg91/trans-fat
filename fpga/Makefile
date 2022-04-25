@@ -64,6 +64,7 @@ SYSROOT :=
 
 VERSION := 0
 PART := fpga2
+JOBS := 16
 
 include ./utils.mk
 
@@ -107,7 +108,7 @@ endif
 
 ############################## Setting up Kernel Variables ##############################
 # Kernel compiler global settings
-VPP_FLAGS += -t $(TARGET) --platform $(DEVICE) --save-temps 
+VPP_FLAGS += -t $(TARGET) --platform $(DEVICE) --save-temps --hls.jobs $(JOBS) --vivado.impl.jobs $(JOBS) --vivado.synth.jobs $(JOBS)
 ifneq ($(TARGET), hw)
 	VPP_FLAGS += -g
 endif

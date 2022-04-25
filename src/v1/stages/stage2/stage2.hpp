@@ -1,5 +1,7 @@
 #pragma once
-#include <sys/types.h>
+#include <inttypes.h>
+
+const int TILE_SIZE2 = 128;
 
 
 void attention_scores(int8_t* query, int8_t* key, int32_t* out, const int seqlen, const int nhead, const int dhead);

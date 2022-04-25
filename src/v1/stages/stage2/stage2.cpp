@@ -1,7 +1,8 @@
-#include <sys/types.h>
+#include <inttypes.h>
 #include <iostream>
 #include <cmath>
 #include "config.hpp"
+#include "stage2.hpp"
 
 /*
     A: NxK
@@ -304,25 +305,24 @@ void attention_scores_fused(int8_t* query, int8_t* key, int8_t* out, const int s
 
     int32_t divisor = std::sqrt(CFG::dmodel);
     int32_t rowbuff[CFG::seqlen];
+    #pragma HLS array_partition dim=1 complete variable=rowbuff
 
-    for (int n = 0; n < nhead; n++) {
+    for (int n = 0; n < CFG::nhead; n++) {
         // compute matmul NHEAD times
-        for (int i = 0; i < seqlen; i++) {
-            for (int j = 0; j < seqlen; j++) {
-                int32_t accum = 0;
-                for (int k = 0; k < dhead; k++) {
-                        // accum += query[n,i,k] * key[n, k, j]
-                        accum += query[i*nhead*dhead +n*dhead + k] * key[j*nhead*dhead + n*dhead + k];
+        for (int i = 0; i < CFG::seqlen; i++) {
+            for (int j = 0; j < CFG::seqlen; j++) {
+                for (int k = 0; k < CFG::dhead; k++) {                   // accum += query[n,i,k] * key[n, k, j]
+                    rowbuff[j] += query[i*CFG::nhead*CFG::dhead +n*CFG::dhead + k] * key[j*CFG::nhead*CFG::dhead + n*CFG::dhead + k];
                 }
                 // out[n,i,j] = accum
-                rowbuff[j] = accum / divisor;
+                rowbuff[j] /= divisor;
             }
-            softmax_fused(rowbuff, out, n*seqlen*seqlen + i*seqlen, M_attention_probs);
+            softmax_fused(rowbuff, out, n*CFG::seqlen*CFG::seqlen + i*CFG::seqlen, M_attention_probs);
         }
     }
 }
 
-void attention_values_fused(int8_t* probs, int8_t* value, int8_t* attn_out, const int seqlen, const int nhead, const int dhead, float M_attention_out) {
+void attention_values_fused(int8_t* probs, int8_t* value, int8_t* attn_out, float M_attention_out) {
 
     /**
      * probs: <nhead, seqlen, seqlen>
@@ -337,32 +337,85 @@ void attention_values_fused(int8_t* probs, int8_t* value, int8_t* attn_out, cons
      * 
     */
 
-   for (int n = 0; n < nhead; n++) {
-       for (int i = 0; i < seqlen; i++) {
-           for (int j = 0; j < dhead; j++) {
+   for (int n = 0; n < CFG::nhead; n++) {
+       for (int i = 0; i < CFG::seqlen; i++) {
+           for (int j = 0; j < CFG::dhead; j++) {
                int32_t accum = 0;
-               for (int k = 0; k < seqlen; k++) {
+               for (int k = 0; k < CFG::seqlen; k++) {
                    // attn_out[n][i][j] += probs[n][i][k] * value[n][k][j]
-                    accum += probs[n*seqlen*seqlen + i*seqlen + k] * value[k*nhead*dhead +n*dhead + j];
+                    accum += probs[n*CFG::seqlen*CFG::seqlen + i*CFG::seqlen + k] * value[k*CFG::nhead*CFG::dhead +n*CFG::dhead + j];
                }
                // writes to attn_out to obtain <seqlen, dmodel> shape
-               attn_out[i*nhead*dhead + n*dhead + j] = int8_t(accum * M_attention_out);
+               attn_out[i*CFG::nhead*CFG::dhead + n*CFG::dhead + j] = int8_t(accum * M_attention_out);
            }
        }
    }
 }
 
-void linear_fused2(int8_t* A, int8_t* B, int32_t* bias, int16_t* out, const int N, const int M, const int K, int8_t* skip_conn, float M_dense, float M_residual) {
-    
-    for (int i = 0; i < N; i++) {
-        for (int j = 0; j < M; j++) {
-            int32_t acc32 = bias[j];
-            for (int k = 0; k < K; k++) {
-                acc32 += A[i*K+k] * B[k*M+j];
-            }
-            int8_t acc8 = int8_t(acc32 * M_dense) + skip_conn[i * M + j];
-            out[i * M + j] = int16_t(acc8 * M_residual);
+int16_t requant(int32_t ob, int8_t sb, float Md, float Mr)
+{
+    int8_t out8 = int8_t(ob * Md) + sb;
+    return int16_t(out8 * Mr);        
+}
+
+void write_output(int it, int jt, int32_t out_block[TILE_SIZE2][TILE_SIZE2], int8_t skip_buff[TILE_SIZE2][TILE_SIZE2], float Md, float Mr, int16_t *out)
+{
+    for (int i = 0; i < TILE_SIZE2; ++i){
+        for (int j = 0; j < TILE_SIZE2; ++j){
+            out[(it * TILE_SIZE2 + i) * CFG::dmodel + jt * TILE_SIZE2 + j] = requant(out_block[i][j], skip_buff[i][j], Md, Mr);
         }
+     }
+}
+
+void linear_fused2(int8_t* A, int8_t* B, int32_t* bias, int16_t* out, int8_t* skip_conn, float M_dense, float M_residual) {
+    
+    // buffers for tile mmult
+    int32_t out_block[TILE_SIZE2][TILE_SIZE2];
+    int8_t skip_buff[TILE_SIZE2][TILE_SIZE2];
+    int8_t B_line[TILE_SIZE2];
+
+
+    #pragma HLS array_partition dim=2 complete variable=out_block
+    #pragma HLS array_partition dim=1 complete variable=B_line
+
+
+    for (int it = 0; it < CFG::seqlen/TILE_SIZE2; ++it)
+    {
+        for (int jt = 0; jt < CFG::dmodel/TILE_SIZE2; ++jt)
+        {
+            // initialize output with bias
+            for (int i = 0; i < TILE_SIZE2; ++i){
+                for (int j = 0; j < TILE_SIZE2; ++j){
+                    #pragma HLS pipeline II=1 
+                    out_block[i][j] = bias[jt * TILE_SIZE2 + j];
+                    skip_buff[i][j] = skip_conn[(it * TILE_SIZE2 + i) * CFG::dmodel + jt * TILE_SIZE2 + j];
+                }
+            }
+
+            for (int kt = 0; kt < CFG::dmodel/TILE_SIZE2; ++kt)
+            {
+                for (int k = 0; k < TILE_SIZE2; ++k)
+                {
+                    
+                    // read B values into vector
+                    for (int j = 0; j < TILE_SIZE2; ++j){
+                        B_line[j] = B[(kt * TILE_SIZE2 + k) * CFG::dmodel + jt * TILE_SIZE2 + j];
+                    }
+
+                    for (int i = 0; i < TILE_SIZE2; ++i){
+                        #pragma HLS PIPELINE II=1
+                        int8_t Ai = A[(it * TILE_SIZE2 + i) * CFG::dmodel + kt * TILE_SIZE2 + k];
+                        for (int j = 0; j < TILE_SIZE2; ++j){
+                            #pragma HLS unroll
+                            out_block[i][j] += Ai * B_line[j];
+                        }
+                    }
+                }
+            }
+
+            write_output(it, jt, out_block, skip_buff, M_dense, M_residual, out);            
+        }
+        
     }
 }
 
@@ -408,9 +461,9 @@ void stage2(int8_t* query_in, int8_t* key_in, int8_t* value_in, int8_t* skip_in,
     // attention, scale, softmax, and requantize
     attention_scores_fused(query_in, key_in, att_scores_buff, CFG::seqlen, CFG::nhead, CFG::dhead, M_attention_probs);
     // values, requantize
-    attention_values_fused(att_scores_buff, value_in, att_out_buff, CFG::seqlen, CFG::nhead, CFG::dhead, M_attention_out);
+    attention_values_fused(att_scores_buff, value_in, att_out_buff, M_attention_out);
     // linear, requantize, residual, requantize
-    linear_fused2(att_out_buff, dense_weight_t, dense_bias, lin_buff, CFG::seqlen, CFG::dmodel, CFG::dmodel, skip_in, M_dense_out, M_residual);
+    linear_fused2(att_out_buff, dense_weight_t, dense_bias, lin_buff, skip_in, M_dense_out, M_residual);
     // layernorm, requantize
     layernorm_fused2(lin_buff, stage2_out, norm_weight, norm_bias, M_residual, M_stage2);
 
