@@ -129,7 +129,7 @@ int8_t gelu_fused(int32_t gelu_in, float scaling_factor, float M_stage3, int b_i
 
 }
 
-void read_A(int8_t *A, hls::stream<int8_t> A_stream) {
+void read_A(int8_t *A, hls::stream<int8_t> &A_stream) {
 
     for (int it = 0; it < CFG::seqlen/TILE_SIZE; ++it)
     {
@@ -141,7 +141,7 @@ void read_A(int8_t *A, hls::stream<int8_t> A_stream) {
                 {
                     for (int i = 0; i < TILE_SIZE; ++i) 
                     {
-                        A_stream.write(A_T[(kt * TILE_SIZE + k) * CFG::seqlen + it * TILE_SIZE + i]);
+                        A_stream.write(A[(kt * TILE_SIZE + k) * CFG::seqlen + it * TILE_SIZE + i]);
                     }
                 }
             }
@@ -149,8 +149,60 @@ void read_A(int8_t *A, hls::stream<int8_t> A_stream) {
     }
 }
 
+void read_B(int8_t *B, hls::stream<int8_t> &B_stream) {
+    for (int it = 0; it < CFG::seqlen/TILE_SIZE; ++it)
+    {
+        for (int jt = 0; jt < CFG::ffdim/TILE_SIZE_J; ++jt)
+        {
+            for (int kt = 0; kt < CFG::dmodel/TILE_SIZE; ++kt)
+            {
+                for (int k = 0; k < TILE_SIZE; ++k)
+                {
+                    // read B values into vector
+                    for (int j = 0; j < TILE_SIZE_J; ++j)
+                    {
+                        B_stream.write( B[(kt * TILE_SIZE + k) * CFG::ffdim + jt * TILE_SIZE_J + j]);
+                    }
+                }
+            }
 
-void linear_fused(hls::stream<int8_t> A_stream, int8_t *B, int32_t *bias, int8_t *out_T, float M_gelu, float M_stage3)
+        }
+    }
+}
+
+void read_bias(int32_t *bias, hls::stream<int32_t> &bias_stream) {
+
+    for (int it = 0; it < CFG::seqlen/TILE_SIZE; ++it)
+    {
+        for (int jt = 0; jt < CFG::ffdim/TILE_SIZE_J; ++jt)
+        {
+            // initialize output with bias
+            for (int i = 0; i < TILE_SIZE; ++i){
+                for (int j = 0; j < TILE_SIZE_J; ++j){
+                    bias_stream.write(bias[jt*TILE_SIZE_J + j]);
+                }
+            }
+
+        }
+    }
+}
+
+void write_out(int8_t *out_T, hls::stream<int8_t> &out_stream) {
+    for (int it = 0; it < CFG::seqlen/TILE_SIZE; ++it)
+    {
+        for (int jt = 0; jt < CFG::ffdim/TILE_SIZE_J; ++jt)
+        {
+            // apply gelu and write output
+            for (int i = 0; i < TILE_SIZE; ++i){
+                for (int j = 0; j < TILE_SIZE_J; ++j){
+                    out_T[(jt * TILE_SIZE_J + j) * CFG::seqlen + it * TILE_SIZE + i] = out_stream.read();
+                }
+            }
+        }
+    }
+}
+
+void linear_fused(hls::stream<int8_t> &A_stream, hls::stream<int8_t> &B_stream, hls::stream<int32_t> &bias_stream, hls::stream<int8_t> &out_stream, float M_gelu, float M_stage3)
 {
     // compute fused gelu constants
     const float k = 1.4142;
@@ -184,7 +236,7 @@ void linear_fused(hls::stream<int8_t> A_stream, int8_t *B, int32_t *bias, int8_t
             // initialize output with bias
             for (int i = 0; i < TILE_SIZE; ++i){
                 for (int j = 0; j < TILE_SIZE_J; ++j){
-                    out_block[i][j] = bias[jt*TILE_SIZE_J + j];
+                    out_block[i][j] = bias_stream.read();
                 }
             }
 
@@ -195,7 +247,7 @@ void linear_fused(hls::stream<int8_t> A_stream, int8_t *B, int32_t *bias, int8_t
                     
                     // read B values into vector
                     for (int j = 0; j < TILE_SIZE_J; ++j){
-                        B_line[j] = B[(kt * TILE_SIZE + k) * CFG::ffdim + jt * TILE_SIZE_J + j];
+                        B_line[j] = B_stream.read();
                     }
                     for (int i = 0; i < TILE_SIZE; ++i) {
                         A_T_line[i] = A_stream.read();
@@ -217,7 +269,7 @@ void linear_fused(hls::stream<int8_t> A_stream, int8_t *B, int32_t *bias, int8_t
             // apply gelu and write output
             for (int i = 0; i < TILE_SIZE; ++i){
                 for (int j = 0; j < TILE_SIZE_J; ++j){
-                    out_T[(jt * TILE_SIZE_J + j) * CFG::seqlen + it * TILE_SIZE + i] = gelu_fused(out_block[i][j], M_gelu, M_stage3, b_int, c_int, shift_int);
+                    out_stream.write(gelu_fused(out_block[i][j], M_gelu, M_stage3, b_int, c_int, shift_int));
                 }
             }
         }
@@ -238,6 +290,11 @@ void stage3(int8_t *fc_in, int8_t *dense_weight_t, int32_t *dense_bias, int8_t *
     static hls::stream<int8_t> B_stream("B_stream");
     static hls::stream<int32_t> bias_stream("bias_stream");
     static hls::stream<int8_t> out_stream("out_stream");
+
+#pragma HLS stream variable=A_stream depth=8
+#pragma HLS stream variable=B_stream depth=8
+#pragma HLS stream variable=bias_stream depth=8
+#pragma HLS stream variable=out_stream depth=8
 
 #pragma HLS dataflow
 
