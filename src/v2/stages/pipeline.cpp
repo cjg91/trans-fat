@@ -85,6 +85,22 @@ void fpga2(int8_t *stage3_fc_in, int8_t* stage3_dense_weight_t, int32_t *stage3_
            int8_t *fc3_to_fc4_buff, int8_t *stage4_dense_weight_t, int8_t *stage4_dense_out, int32_t *stage4_dense_bias, int16_t* stage4_norm_weight,
            int16_t *stage4_norm_bias, float stage4_M_residual, float stage4_M_dense_acc, float M_stage4)
 {
+#pragma HLS interface m_axi port=stage3_fc_in bundle=gmem0
+#pragma HLS interface m_axi port=stage3_dense_weight_t bundle=gmem1
+#pragma HLS interface m_axi port=stage3_dense_bias bundle=gmem2
+#pragma HLS interface m_axi port=fc3_to_fc4_buff bundle=gmem3
+#pragma HLS interface m_axi port=stage4_dense_weight_t bundle=gmem4
+#pragma HLS interface m_axi port=stage4_dense_out bundle=gmem5
+#pragma HLS interface m_axi port=stage4_dense_bias bundle=gmem6
+#pragma HLS interface m_axi port=stage4_norm_weight bundle=gmem7
+#pragma HLS interface m_axi port=stage4_norm_bias bundle=gmem8
+#pragma HLS interface s_axilite port=stage3_dense_acc_scale bundle=control
+#pragma HLS interface s_axilite port=M_stage3 bundle=control
+#pragma HLS interface s_axilite port=stage4_M_residual bundle=control
+#pragma HLS interface s_axilite port=stage4_M_dense_acc bundle=control
+#pragma HLS interface s_axilite port=M_stage4 bundle=control
+#pragma HLS interface s_axilite port=return bundle=control
+    
 
     stage3(stage3_fc_in, stage3_dense_weight_t, stage3_dense_bias, fc3_to_fc4_buff, stage3_dense_acc_scale, M_stage3);
     stage4(fc3_to_fc4_buff, stage3_fc_in, stage4_M_residual, stage4_dense_weight_t, stage4_dense_bias, stage4_dense_out,

@@ -193,7 +193,7 @@ void linear_fused(int8_t* A_T, int8_t* B, int32_t* bias, int16_t* out, int8_t* s
 
                     for (int i = 0; i < TILE_SIZE4; ++i){
                         //#pragma HLS unroll factor=4
-                        #pragma HLS PIPELINE II=1
+                        #pragma HLS PIPELINE 
                         int8_t Ai = A_T_line[i];
                         for (int j = 0; j < TILE_SIZE4_J; ++j){
                             #pragma HLS unroll
@@ -207,6 +207,7 @@ void linear_fused(int8_t* A_T, int8_t* B, int32_t* bias, int16_t* out, int8_t* s
     }
 }
 
+/*
 void layernorm_fused(int16_t *act, int8_t *out, int16_t *norm_weight, int16_t *norm_bias, float scaling_factor, float M_stage)
     {
         // calculate constant for std computation
@@ -233,7 +234,7 @@ void layernorm_fused(int16_t *act, int8_t *out, int16_t *norm_weight, int16_t *n
         }
         int16_t m = int16_t(macc/CFG::dmodel);
         for (int j = 0; j < CFG::dmodel; ++j){  
-#pragma HLS unroll factor=32
+//#pragma HLS unroll factor=32
             act[i * CFG::dmodel + j] -= m;
         }
 
@@ -244,7 +245,7 @@ void layernorm_fused(int16_t *act, int8_t *out, int16_t *norm_weight, int16_t *n
         int16_t stdev = int16_t(sqrt(float(acc16 + C)));
 
         for (int j = 0; j < CFG::dmodel; ++j){
-#pragma HLS unroll factor=32
+//#pragma HLS unroll factor=32
             act[i * CFG::dmodel + j] /= stdev;
             int16_t acc16 = int16_t((act[i * CFG::dmodel + j]* norm_weight_buf[j] + norm_bias_buf[j]) * scaling_factor);
             out[i * CFG::dmodel + j] = int8_t(acc16 * M_stage);
@@ -252,7 +253,41 @@ void layernorm_fused(int16_t *act, int8_t *out, int16_t *norm_weight, int16_t *n
     }
 
 }
+*/
 
+void layernorm_fused(int16_t *act, int8_t *out, int16_t *norm_weight, int16_t *norm_bias, float scaling_factor, float M_stage)
+{
+    // calculate constant for std computation
+    const int16_t C = int16_t(CFG::eps / scaling_factor);
+
+    // for some reason rn if I fuse this int the next loops it doesn't work
+    // we'll want to probably break these up and pipeline anyway so leaving for now
+    for (int i = 0; i < CFG::seqlen; ++i){
+        int32_t macc = 0;
+        for (int j = 0; j < CFG::dmodel; ++j){
+            macc += act[i * CFG::dmodel + j];
+        }
+        int16_t m = int16_t(macc/CFG::dmodel);
+        for (int j = 0; j < CFG::dmodel; ++j){  
+            act[i*CFG::dmodel + j] = act[i*CFG::dmodel + j] - m;
+        }
+    } 
+
+    for (int i = 0; i < CFG::seqlen; ++i){
+        int16_t acc16 = 0;
+        for (int j = 0; j < CFG::dmodel; ++j){
+            acc16 += int16_t(act[i * CFG::dmodel + j]*int32_t(act[i * CFG::dmodel + j])/CFG::dmodel);
+        }
+        int16_t stdev = int16_t(sqrt(float(acc16 + C)));
+
+        for (int j = 0; j < CFG::dmodel; ++j){
+            act[i * CFG::dmodel + j] /= stdev;
+            int16_t acc16 = int16_t((act[i * CFG::dmodel + j] * norm_weight[j] + norm_bias[j]) * scaling_factor);
+            out[i * CFG::dmodel + j] = int8_t(acc16 * M_stage);
+        }
+    }
+
+}
 extern "C"
 {
 void stage4(int8_t *fc_in, int8_t *skip_conn, float M_residual, int8_t *dense_weight_t, int32_t *dense_bias, int8_t *dense_out, float M_dense_acc, int16_t *norm_weight, int16_t *norm_bias, float M_stage4)

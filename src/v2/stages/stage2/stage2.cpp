@@ -305,18 +305,30 @@ void attention_scores_fused(int8_t* query, int8_t* key, int8_t* out, const int s
 
     int32_t divisor = std::sqrt(CFG::dmodel);
     int32_t rowbuff[CFG::seqlen];
-    #pragma HLS array_partition dim=1 complete variable=rowbuff
+    int32_t query_row[CFG::dhead];
+    int32_t key_row[CFG::dhead];
+
+    #pragma HLS array_partition variable=query_row complete
+    #pragma HLS array_partition variable=key_row complete 
 
     for (int n = 0; n < CFG::nhead; n++) {
         // compute matmul NHEAD times
         for (int i = 0; i < CFG::seqlen; i++) {
+            for (int k = 0; k < CFG::dhead; k++) {                   
+                query_row[k] = query[i*CFG::nhead*CFG::dhead +n*CFG::dhead + k];
+            }
             for (int j = 0; j < CFG::seqlen; j++) {
-                    rowbuff[j] = 0;
+                for (int k = 0; k < CFG::dhead; k++) {                  
+                    key_row[k] = key[j*CFG::nhead*CFG::dhead + n*CFG::dhead + k];
+                }
+
+                int32_t accum = 0;
                 for (int k = 0; k < CFG::dhead; k++) {                   // accum += query[n,i,k] * key[n, k, j]
-                    rowbuff[j] += query[i*CFG::nhead*CFG::dhead +n*CFG::dhead + k] * key[j*CFG::nhead*CFG::dhead + n*CFG::dhead + k];
+                #pragma HLS unroll
+                    accum += query_row[k] * key_row[k];
                 }
                 // out[n,i,j] = accum
-                rowbuff[j] /= divisor;
+                rowbuff[j] = accum / divisor;
             }
             softmax_fused(rowbuff, out, n*CFG::seqlen*CFG::seqlen + i*CFG::seqlen, M_attention_probs);
         }
@@ -338,19 +350,38 @@ void attention_values_fused(int8_t* probs, int8_t* value, int8_t* attn_out, floa
      * 
     */
 
-   for (int n = 0; n < CFG::nhead; n++) {
-       for (int i = 0; i < CFG::seqlen; i++) {
-           for (int j = 0; j < CFG::dhead; j++) {
-               int32_t accum = 0;
-               for (int k = 0; k < CFG::seqlen; k++) {
-                   // attn_out[n][i][j] += probs[n][i][k] * value[n][k][j]
-                    accum += probs[n*CFG::seqlen*CFG::seqlen + i*CFG::seqlen + k] * value[k*CFG::nhead*CFG::dhead +n*CFG::dhead + j];
-               }
-               // writes to attn_out to obtain <seqlen, dmodel> shape
-               attn_out[i*CFG::nhead*CFG::dhead + n*CFG::dhead + j] = int8_t(accum * M_attention_out);
-           }
-       }
-   }
+    int32_t row_buf[CFG::dhead];
+    int8_t probs_row[CFG::seqlen];
+    int8_t value_row[CFG::dhead];
+    #pragma HLS array_partition variable=row_buf complete
+    #pragma HLS array_partition variable=value_row complete
+    
+
+
+    for (int n = 0; n < CFG::nhead; n++) {
+        for (int i = 0; i < CFG::seqlen; i++) {
+            for (int k = 0; k < CFG::seqlen; ++k) {
+                probs_row[k] = probs[n*CFG::seqlen*CFG::seqlen + i*CFG::seqlen + k];
+            }
+            for (int j = 0; j < CFG::dhead; ++j) {
+                row_buf[j] = 0;
+            }
+            for (int k = 0; k < CFG::seqlen; k++) {
+                for (int j = 0; j < CFG::dhead; ++j) {
+                    value_row[j] = value[k*CFG::nhead*CFG::dhead +n*CFG::dhead + j];
+                }
+                int8_t probs_k = probs_row[k];
+                for (int j = 0; j < CFG::dhead; j++) {
+                    #pragma HLS unroll
+                    // attn_out[n][i][j] += probs[n][i][k] * value[n][k][j]
+                    row_buf[j] += probs_k * value_row[j];
+                }
+            }
+            for (int j = 0; j < CFG::dhead; ++j) {
+                attn_out[i*CFG::nhead*CFG::dhead + n*CFG::dhead + j] = int8_t(row_buf[j] * M_attention_out);
+            }
+        }
+    }
 }
 
 int16_t requant(int32_t ob, int8_t sb, float Md, float Mr)
@@ -368,7 +399,7 @@ void write_output(int it, int jt, int32_t out_block[TILE_SIZE2][TILE_SIZE2], int
      }
 }
 
-void linear_fused2(int8_t* A, int8_t* B, int32_t* bias, int16_t* out, int8_t* skip_conn, float M_dense, float M_residual) {
+void linear_fused2(int8_t* A, int8_t* B, int32_t* bias, int16_t* out_T, int8_t* skip_conn_T, float M_dense, float M_residual) {
     
     // buffers for tile mmult
     int32_t out_block[TILE_SIZE2][TILE_SIZE2];
@@ -389,7 +420,7 @@ void linear_fused2(int8_t* A, int8_t* B, int32_t* bias, int16_t* out, int8_t* sk
                 for (int j = 0; j < TILE_SIZE2; ++j){
                     #pragma HLS pipeline II=1 
                     out_block[i][j] = bias[jt * TILE_SIZE2 + j];
-                    skip_buff[i][j] = skip_conn[(jt * TILE_SIZE2 + j) * CFG::seqlen + it * TILE_SIZE2 + i];
+                    skip_buff[i][j] = skip_conn_T[(jt * TILE_SIZE2 + j) * CFG::seqlen + it * TILE_SIZE2 + i];
                 }
             }
 
@@ -414,11 +445,12 @@ void linear_fused2(int8_t* A, int8_t* B, int32_t* bias, int16_t* out, int8_t* sk
                 }
             }
 
-            write_output(it, jt, out_block, skip_buff, M_dense, M_residual, out);            
+            write_output(it, jt, out_block, skip_buff, M_dense, M_residual, out_T);            
         }
         
     }
 }
+
 
 void layernorm_fused2(int16_t *act, int8_t *out, int16_t *norm_weight, int16_t *norm_bias, float scaling_factor, float M_stage)
 {
@@ -448,12 +480,11 @@ void layernorm_fused2(int16_t *act, int8_t *out, int16_t *norm_weight, int16_t *
         for (int j = 0; j < CFG::dmodel; ++j){
             act[i * CFG::dmodel + j] /= stdev;
             int16_t acc16 = int16_t((act[i * CFG::dmodel + j] * norm_weight[j] + norm_bias[j]) * scaling_factor);
-            out[i * CFG::dmodel + j] = int8_t(acc16 * M_stage);
+            out[j*CFG::seqlen+i] = int8_t(acc16 * M_stage);
         }
     }
 
 }
-
 extern "C" {
 void stage2(int8_t* query_in, int8_t* key_in, int8_t* value_in, int8_t* skip_in, int8_t* stage2_out, int8_t* dense_weight_t, int32_t* dense_bias, float M_attention_probs, float M_attention_out, float M_dense_out, float M_residual, int16_t* norm_weight, int16_t* norm_bias, float M_stage2) {
     int8_t att_scores_buff[CFG::nhead*CFG::seqlen*CFG::seqlen];
