@@ -181,7 +181,7 @@ void linear_fused(int8_t *A_T, int8_t *B, int32_t *bias, int8_t *out_T, float M_
 
                     for (int i = 0; i < TILE_SIZE; ++i){
                         //#pragma HLS unroll factor=4
-                        #pragma HLS PIPELINE II=1
+                        #pragma HLS PIPELINE 
                         int8_t Ai = A_T_line[i];
                         for (int j = 0; j < TILE_SIZE_J; ++j){
                             #pragma HLS unroll

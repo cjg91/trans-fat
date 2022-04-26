@@ -1,5 +1,5 @@
 #pragma once
-#include <sys/types.h>
+#include <inttypes.h>
 
 typedef struct stage1_args_t
 {

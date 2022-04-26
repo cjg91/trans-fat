@@ -69,7 +69,7 @@ int main(int argc, char **argv) {
     std::vector<int8_t, aligned_allocator<int8_t>> value(CFG::seqlen*CFG::dmodel);
 
     stage1_args_t s1_args;
-    s1_args.in = stage1_in.data();
+    s1_args.in = new int8_t[CFG::seqlen*CFG::dmodel];
     s1_args.query_weight_t = stage1_query_weight_t.data();
     s1_args.key_weight_t = stage1_key_weight_t.data();
     s1_args.value_weight_t = stage1_value_weight_t.data();
@@ -88,6 +88,12 @@ int main(int argc, char **argv) {
     genmat(s1_args.key_bias, 1, CFG::dmodel, 65);
     genmat(s1_args.value_bias, 1, CFG::dmodel, 67);
 
+    for (int i = 0; i < CFG::dmodel; ++i) {
+        for (int j = 0; j < CFG::seqlen; ++j) {
+            stage1_in.data()[i*CFG::seqlen+j] = s1_args.in[j*CFG::dmodel+i]; 
+        }
+    }
+
     /********** STAGE 2 ARGS ***********/
     std::vector<int8_t, aligned_allocator<int8_t>> stage2_out(CFG::seqlen*CFG::dmodel);
     std::vector<int8_t, aligned_allocator<int8_t>> stage2_dense_weight_t(CFG::dmodel*CFG::dmodel);
@@ -96,6 +102,7 @@ int main(int argc, char **argv) {
     std::vector<int16_t, aligned_allocator<int16_t>> stage2_norm_bias(CFG::dmodel);
 
     auto stage2_out_gt = new int8_t[CFG::seqlen*CFG::dmodel];
+    auto stage2_out_test_T = new int8_t[CFG::seqlen*CFG::dmodel];
 
     stage2_args_t s2_args;
     s2_args.out = stage2_out_gt;
@@ -293,7 +300,12 @@ int main(int argc, char **argv) {
   */
 
   // Compare the results of the Device to the simulation
-  bool match = check(stage2_out_gt, stage2_out.data(), CFG::seqlen, CFG::dmodel);
+  for (int i = 0; i < CFG::seqlen; ++i) {
+    for (int j = 0; j < CFG::dmodel; ++j) {
+        stage2_out_test_T[i*CFG::dmodel+j] = stage2_out.data()[j*CFG::seqlen+i];
+    }
+  }
+  bool match = check(stage2_out_gt, stage2_out_test_T, CFG::seqlen, CFG::dmodel);
 
   std::cout << "TEST " << (match ? "PASSED" : "FAILED") << std::endl;
 

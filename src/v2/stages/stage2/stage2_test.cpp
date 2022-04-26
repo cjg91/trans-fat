@@ -119,10 +119,12 @@ int main() {
     key_in = new int8_t[CFG::seqlen*CFG::dmodel];
     value_in = new int8_t[CFG::seqlen*CFG::dmodel];
     auto skip_in = new int8_t[CFG::seqlen*CFG::dmodel];
+    auto skip_in_T = new int8_t[CFG::seqlen*CFG::dmodel];
     auto dense_weight_t = new int8_t[CFG::dmodel*CFG::dmodel];
     auto dense_bias = new int32_t[CFG::dmodel];
     auto norm_weight = new int16_t[CFG::dmodel];
     auto norm_bias = new int16_t[CFG::dmodel];
+    auto stage2_out_test_T = new int8_t[CFG::seqlen*CFG::dmodel];
     auto stage2_out_test = new int8_t[CFG::seqlen*CFG::dmodel];
     auto stage2_out_gt = new int8_t[CFG::seqlen*CFG::dmodel];
 
@@ -136,6 +138,12 @@ int main() {
     genmat(norm_weight, 1, CFG::dmodel, 17);
     genmat(norm_bias, 1, CFG::dmodel, 23);
 
+    for (int i = 0; i < CFG::dmodel; ++i) {
+        for (int j = 0; j < CFG::seqlen; ++j) {
+            skip_in_T[i*CFG::seqlen+j] = skip_in[j*CFG::dmodel+i];
+        }
+    } 
+
     float M_attention_probs = 100;
     float M_attention_out = .1;
     float M_dense_out = .1;
@@ -144,7 +152,14 @@ int main() {
 
 
     stage2_gt(query_in, key_in, value_in, skip_in, stage2_out_gt, dense_weight_t, dense_bias, M_attention_probs, M_attention_out, M_dense_out, M_residual, norm_weight, norm_bias, M_stage2);
-    stage2(query_in, key_in, value_in, skip_in, stage2_out_test, dense_weight_t, dense_bias, M_attention_probs, M_attention_out, M_dense_out, M_residual, norm_weight, norm_bias, M_stage2);
+    stage2(query_in, key_in, value_in, skip_in_T, stage2_out_test_T, dense_weight_t, dense_bias, M_attention_probs, M_attention_out, M_dense_out, M_residual, norm_weight, norm_bias, M_stage2);
+
+    for (int i = 0; i < CFG::seqlen; ++i) {
+        for (int j = 0; j < CFG::dmodel; ++j) {
+            stage2_out_test[i*CFG::dmodel+j] = stage2_out_test_T[j*CFG::seqlen+i];
+        }
+    } 
+    
 
     std::cout << "att_out: " << (check(stage2_out_gt, stage2_out_test, 1,CFG::seqlen*CFG::dmodel ) ? "PASSED" : "FAILED") << std::endl;
 
