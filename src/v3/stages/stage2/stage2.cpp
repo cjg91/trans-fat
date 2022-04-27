@@ -3,6 +3,7 @@
 #include <cmath>
 #include "config.hpp"
 #include "stage2.hpp"
+#include "hls_stream.h"
 
 /*
     A: NxK
@@ -301,7 +302,34 @@ void stage2_gt(int8_t* query_in, int8_t* key_in, int8_t* value_in, int8_t* skip_
 }
 }
 
-void attention_scores_fused(int8_t* query, int8_t* key, int8_t* out, float M_attention_probs) {
+
+void read_query_in2(int8_t *in, hls::stream<int8_t> &in_stream) {
+    for (int n = 0; n < CFG::nhead; n++) {
+        // compute matmul NHEAD times
+        for (int i = 0; i < CFG::seqlen; i++) 
+        {
+            for (int k = 0; k < CFG::dhead; k++) 
+            {                   
+                in_stream.write(in[i*CFG::nhead*CFG::dhead +n*CFG::dhead + k]);
+            }
+        }
+    }
+}
+
+void read_key_in2(int8_t *in, hls::stream<int8_t> &in_stream) {
+    for (int n = 0; n < CFG::nhead; n++) {
+        // compute matmul NHEAD times
+        for (int i = 0; i < CFG::seqlen; i++) {
+            for (int j = 0; j < CFG::seqlen; j++) {
+                for (int k = 0; k < CFG::dhead; k++) {                  
+                    in_stream.write(in[j*CFG::nhead*CFG::dhead + n*CFG::dhead + k]);
+                }
+            }
+        }
+    }
+}
+
+void attention_scores_fused(hls::stream<int8_t> &query_stream, hls::stream<int8_t> &key_stream, int8_t* out, float M_attention_probs) {
 
     int32_t divisor = std::sqrt(CFG::dmodel);
     int32_t rowbuff[CFG::seqlen];
@@ -315,11 +343,11 @@ void attention_scores_fused(int8_t* query, int8_t* key, int8_t* out, float M_att
         // compute matmul NHEAD times
         for (int i = 0; i < CFG::seqlen; i++) {
             for (int k = 0; k < CFG::dhead; k++) {                   
-                query_row[k] = query[i*CFG::nhead*CFG::dhead +n*CFG::dhead + k];
+                query_row[k] = query_stream.read();
             }
             for (int j = 0; j < CFG::seqlen; j++) {
                 for (int k = 0; k < CFG::dhead; k++) {                  
-                    key_row[k] = key[j*CFG::nhead*CFG::dhead + n*CFG::dhead + k];
+                    key_row[k] = key_stream.read();
                 }
 
                 int32_t accum = 0;
@@ -335,7 +363,18 @@ void attention_scores_fused(int8_t* query, int8_t* key, int8_t* out, float M_att
     }
 }
 
-void attention_values_fused(int8_t* probs, int8_t* value, int8_t* attn_out, float M_attention_out) {
+void read_value_in2(int8_t *in, hls::stream<int8_t> &in_stream) {
+    for (int n = 0; n < CFG::nhead; n++) {
+        for (int i = 0; i < CFG::seqlen; i++) {
+            for (int k = 0; k < CFG::seqlen; k++) {
+                for (int j = 0; j < CFG::dhead; ++j) {
+                    in_stream.write(in[k*CFG::nhead*CFG::dhead +n*CFG::dhead + j]);
+                }
+            }
+        }
+    }
+}
+void attention_values_fused(int8_t* probs, hls::stream<int8_t> &value_in_stream, int8_t* attn_out, float M_attention_out) {
 
     /**
      * probs: <nhead, seqlen, seqlen>
@@ -368,7 +407,7 @@ void attention_values_fused(int8_t* probs, int8_t* value, int8_t* attn_out, floa
             }
             for (int k = 0; k < CFG::seqlen; k++) {
                 for (int j = 0; j < CFG::dhead; ++j) {
-                    value_row[j] = value[k*CFG::nhead*CFG::dhead +n*CFG::dhead + j];
+                    value_row[j] = value_in_stream.read();
                 }
                 int8_t probs_k = probs_row[k];
                 for (int j = 0; j < CFG::dhead; j++) {
@@ -399,7 +438,56 @@ void write_output(int it, int jt, int32_t out_block[TILE_SIZE2][TILE_SIZE2], int
      }
 }
 
-void linear_fused2(int8_t* A, int8_t* B, int32_t* bias, int16_t* out_T, int8_t* skip_conn_T, float M_dense, float M_residual) {
+void read_weight2(int8_t *weight, hls::stream<int8_t> &weight_stream) {
+
+    for (int it = 0; it < CFG::seqlen/TILE_SIZE2; ++it)
+    {
+        for (int jt = 0; jt < CFG::dmodel/TILE_SIZE2; ++jt)
+        {
+            for (int kt = 0; kt < CFG::dmodel/TILE_SIZE2; ++kt)
+            {
+                for (int k = 0; k < TILE_SIZE2; ++k)
+                {
+                    // read B values into vector
+                    for (int j = 0; j < TILE_SIZE2; ++j){
+                        weight_stream.write(weight[(kt * TILE_SIZE2 + k) * CFG::dmodel + jt * TILE_SIZE2 + j]);
+                    }
+                }
+            }
+        }
+    }
+}
+
+void read_bias2(int32_t *bias, hls::stream<int32_t> &bias_stream) {
+    for (int it = 0; it < CFG::seqlen/TILE_SIZE2; ++it)
+    {
+        for (int jt = 0; jt < CFG::dmodel/TILE_SIZE2; ++jt)
+        {
+            for (int i = 0; i < TILE_SIZE2; ++i){
+                for (int j = 0; j < TILE_SIZE2; ++j){
+                    bias_stream.write(bias[jt * TILE_SIZE2 + j]);
+                }
+            }
+        }
+    }
+}
+
+void read_skip2(int8_t *skip, hls::stream<int8_t> &skip_stream) {
+    for (int it = 0; it < CFG::seqlen/TILE_SIZE2; ++it)
+    {
+        for (int jt = 0; jt < CFG::dmodel/TILE_SIZE2; ++jt)
+        {
+            // initialize output with bias
+            for (int i = 0; i < TILE_SIZE2; ++i){
+                for (int j = 0; j < TILE_SIZE2; ++j){
+                    skip_stream.write(skip[(jt * TILE_SIZE2 + j) * CFG::seqlen + it * TILE_SIZE2 + i]);
+                }
+            }
+        }
+    }
+}
+
+void linear_fused2(int8_t* A, hls::stream<int8_t> &weight_stream, hls::stream<int32_t> &bias_stream, int16_t* out_T, hls::stream<int8_t> &skip_stream, float M_dense, float M_residual) {
     
     // buffers for tile mmult
     int32_t out_block[TILE_SIZE2][TILE_SIZE2];
@@ -419,8 +507,8 @@ void linear_fused2(int8_t* A, int8_t* B, int32_t* bias, int16_t* out_T, int8_t* 
             for (int i = 0; i < TILE_SIZE2; ++i){
                 for (int j = 0; j < TILE_SIZE2; ++j){
                     #pragma HLS pipeline II=1 
-                    out_block[i][j] = bias[jt * TILE_SIZE2 + j];
-                    skip_buff[i][j] = skip_conn_T[(jt * TILE_SIZE2 + j) * CFG::seqlen + it * TILE_SIZE2 + i];
+                    out_block[i][j] = bias_stream.read();
+                    skip_buff[i][j] = skip_stream.read();
                 }
             }
 
@@ -431,7 +519,7 @@ void linear_fused2(int8_t* A, int8_t* B, int32_t* bias, int16_t* out_T, int8_t* 
                     
                     // read B values into vector
                     for (int j = 0; j < TILE_SIZE2; ++j){
-                        B_line[j] = B[(kt * TILE_SIZE2 + k) * CFG::dmodel + jt * TILE_SIZE2 + j];
+                        B_line[j] = weight_stream.read();
                     }
 
                     for (int i = 0; i < TILE_SIZE2; ++i){
@@ -485,17 +573,64 @@ void layernorm_fused2(int16_t *act, int8_t *out, int16_t *norm_weight, int16_t *
     }
 
 }
+
+void attention_scores_dataflow(int8_t *query_in, int8_t *key_in, int8_t *att_scores_buff, float M_attention_probs ) {
+#pragma HLS dataflow
+    static hls::stream<int8_t> query_in_stream("query_in_stream");
+    static hls::stream<int8_t> key_in_stream("key_in_stream");
+
+#pragma HLS stream variable=query_in_stream depth=128
+#pragma HLS stream variable=key_in_stream depth=128
+
+    read_query_in2(query_in, query_in_stream);
+    read_key_in2(key_in, key_in_stream);
+
+    // attention, scale, softmax, and requantize
+    attention_scores_fused(query_in_stream, key_in_stream, att_scores_buff, M_attention_probs);
+}
+
+void attention_values_dataflow(int8_t *att_scores_buff, int8_t *value_in, int8_t *att_out_buff, float M_attention_out) {
+#pragma HLS dataflow
+    static hls::stream<int8_t> value_in_stream("value_in_stream");
+#pragma HLS stream variable=value_in_stream depth=128
+
+    read_value_in2(value_in, value_in_stream);
+    
+    attention_values_fused(att_scores_buff, value_in_stream, att_out_buff, M_attention_out);
+}
+
+void linear_dataflow2(int8_t *in_buff, int8_t *weight, int32_t *bias, int16_t *out_buff, int8_t *skip, float M_dense_out, float M_residual) {
+#pragma HLS dataflow
+    static hls::stream<int8_t> dense_weight_stream("dense_weight_stream");
+    static hls::stream<int32_t> dense_bias_stream("dense_bias_stream");
+    static hls::stream<int8_t> skip_stream("skip_stream");
+
+#pragma HLS stream variable=dense_weight_stream depth=128
+#pragma HLS stream variable=dense_bias_stream depth=128
+#pragma HLS stream variable=skip_stream depth=128
+
+    read_weight2(weight, dense_weight_stream);
+    read_bias2(bias, dense_bias_stream);
+    read_skip2(skip, skip_stream);
+
+    linear_fused2(in_buff, dense_weight_stream, dense_bias_stream, out_buff, skip_stream, M_dense_out, M_residual);
+            
+
+}
+
 extern "C" {
 void stage2(int8_t* query_in, int8_t* key_in, int8_t* value_in, int8_t* skip_in, int8_t* stage2_out, int8_t* dense_weight_t, int32_t* dense_bias, float M_attention_probs, float M_attention_out, float M_dense_out, float M_residual, int16_t* norm_weight, int16_t* norm_bias, float M_stage2) {
     int8_t att_scores_buff[CFG::nhead*CFG::seqlen*CFG::seqlen];
     int8_t att_out_buff[CFG::seqlen*CFG::dmodel];
     int16_t lin_buff[CFG::seqlen*CFG::dmodel];
-    // attention, scale, softmax, and requantize
-    attention_scores_fused(query_in, key_in, att_scores_buff, M_attention_probs);
-    // values, requantize
-    attention_values_fused(att_scores_buff, value_in, att_out_buff, M_attention_out);
+
+    attention_scores_dataflow(query_in, key_in, att_scores_buff, M_attention_probs);
+
+    attention_values_dataflow(att_scores_buff, value_in, att_out_buff, M_attention_out);
+
+
     // linear, requantize, residual, requantize
-    linear_fused2(att_out_buff, dense_weight_t, dense_bias, lin_buff, skip_in, M_dense_out, M_residual);
+    linear_dataflow2(att_out_buff, dense_weight_t, dense_bias, lin_buff, skip_in, M_dense_out, M_residual);
     // layernorm, requantize
     layernorm_fused2(lin_buff, stage2_out, norm_weight, norm_bias, M_residual, M_stage2);
 
