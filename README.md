@@ -70,9 +70,9 @@ TODO
   </tr>
   <tr>
     <td align="center">v3</td>
-    <td></td>
+    <td>121.26</td>
     <td>71.7614</td>
-    <td></td>
+    <td>194.465</td>
   </tr>
 </tbody>
 </table>
