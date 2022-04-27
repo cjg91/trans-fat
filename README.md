@@ -71,7 +71,7 @@ TODO
   <tr>
     <td align="center">v3</td>
     <td></td>
-    <td></td>
+    <td>71.7614</td>
     <td></td>
   </tr>
 </tbody>
