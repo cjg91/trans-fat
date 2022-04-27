@@ -64,9 +64,9 @@ TODO
   </tr>
   <tr>
     <td align="center">v2</td>
-    <td></td>
-    <td></td>
-    <td></td>
+    <td>48.3591</td>
+    <td>95.6048</td>
+    <td>145.266</td>
   </tr>
   <tr>
     <td align="center">v3</td>
