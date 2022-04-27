@@ -301,7 +301,7 @@ void stage2_gt(int8_t* query_in, int8_t* key_in, int8_t* value_in, int8_t* skip_
 }
 }
 
-void attention_scores_fused(int8_t* query, int8_t* key, int8_t* out, const int seqlen, const int nhead, const int dhead, float M_attention_probs) {
+void attention_scores_fused(int8_t* query, int8_t* key, int8_t* out, float M_attention_probs) {
 
     int32_t divisor = std::sqrt(CFG::dmodel);
     int32_t rowbuff[CFG::seqlen];
@@ -491,7 +491,7 @@ void stage2(int8_t* query_in, int8_t* key_in, int8_t* value_in, int8_t* skip_in,
     int8_t att_out_buff[CFG::seqlen*CFG::dmodel];
     int16_t lin_buff[CFG::seqlen*CFG::dmodel];
     // attention, scale, softmax, and requantize
-    attention_scores_fused(query_in, key_in, att_scores_buff, CFG::seqlen, CFG::nhead, CFG::dhead, M_attention_probs);
+    attention_scores_fused(query_in, key_in, att_scores_buff, M_attention_probs);
     // values, requantize
     attention_values_fused(att_scores_buff, value_in, att_out_buff, M_attention_out);
     // linear, requantize, residual, requantize

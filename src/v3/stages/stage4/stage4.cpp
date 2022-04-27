@@ -4,6 +4,7 @@
 #include <inttypes.h>
 #include "config.hpp"
 #include <iostream>
+#include "hls_stream.h"
 
 void linear_sw4(int8_t* A, int8_t* B, int32_t* bias, int32_t* out, const int N, const int M, const int K) {
     
@@ -153,7 +154,76 @@ void write_out(int it, int jt, int32_t out_block[TILE_SIZE4][TILE_SIZE4_J], int8
      }
 }
 
-void linear_fused(int8_t* A_T, int8_t* B, int32_t* bias, int16_t* out, int8_t* skip_conn_T, float M_dense, float M_residual) {
+void read_A4(int8_t *A, hls::stream<int8_t> &A_stream) {
+    for (int it = 0; it < CFG::seqlen/TILE_SIZE4; ++it)
+    {
+        for (int jt = 0; jt < CFG::dmodel/TILE_SIZE4_J; ++jt)
+        {
+            for (int kt = 0; kt < CFG::ffdim/TILE_SIZE4; ++kt)
+            {
+                for (int k = 0; k < TILE_SIZE4; ++k)
+                {
+                    for (int i = 0; i < TILE_SIZE4; ++i) 
+                    {
+                        A_stream.write(A[(kt * TILE_SIZE4 + k) * CFG::seqlen + it * TILE_SIZE4 + i]);
+                    }
+                }
+            }
+        }
+    }
+}
+
+void read_B4(int8_t *B, hls::stream<int8_t> &B_stream) {
+    for (int it = 0; it < CFG::seqlen/TILE_SIZE4; ++it)
+    {
+        for (int jt = 0; jt < CFG::dmodel/TILE_SIZE4_J; ++jt)
+        {
+            for (int kt = 0; kt < CFG::ffdim/TILE_SIZE4; ++kt)
+            {
+                for (int k = 0; k < TILE_SIZE4; ++k)
+                {
+                    // read B values into vector
+                    for (int j = 0; j < TILE_SIZE4_J; ++j)
+                    {
+                        B_stream.write(B[(kt * TILE_SIZE4 + k) * CFG::dmodel + jt * TILE_SIZE4_J + j]);
+                    }
+                }
+            }
+        }
+    }
+}
+
+void read_bias4(int32_t *bias, hls::stream<int32_t> &bias_stream) {
+    for (int it = 0; it < CFG::seqlen/TILE_SIZE4; ++it)
+    {
+        for (int jt = 0; jt < CFG::dmodel/TILE_SIZE4_J; ++jt)
+        {
+            // initialize output with bias
+            for (int i = 0; i < TILE_SIZE4; ++i){
+                for (int j = 0; j < TILE_SIZE4_J; ++j){
+                    bias_stream.write(bias[jt*TILE_SIZE4_J + j]);
+                }
+            }
+        }
+    }
+}
+
+void read_skip4(int8_t *skip_conn, hls::stream<int8_t> &skip_stream) {
+    for (int it = 0; it < CFG::seqlen/TILE_SIZE4; ++it)
+    {
+        for (int jt = 0; jt < CFG::dmodel/TILE_SIZE4_J; ++jt)
+        {
+            // initialize output with bias
+            for (int i = 0; i < TILE_SIZE4; ++i){
+                for (int j = 0; j < TILE_SIZE4_J; ++j){
+                    skip_stream.write(skip_conn[(jt * TILE_SIZE4_J + j) * CFG::seqlen + it * TILE_SIZE4 + i]);
+                }
+            }
+        }
+    }
+}
+
+void linear_fused4(hls::stream<int8_t> &A_stream, hls::stream<int8_t> &B_stream, hls::stream<int32_t> &bias_stream, int16_t* out, hls::stream<int8_t> &skip_stream, float M_dense, float M_residual) {
     
         // buffers for tile mmult
     int32_t out_block[TILE_SIZE4][TILE_SIZE4_J];
@@ -174,8 +244,8 @@ void linear_fused(int8_t* A_T, int8_t* B, int32_t* bias, int16_t* out, int8_t* s
             // initialize output with bias
             for (int i = 0; i < TILE_SIZE4; ++i){
                 for (int j = 0; j < TILE_SIZE4_J; ++j){
-                    out_block[i][j] = bias[jt*TILE_SIZE4_J + j];
-                    skip_buff[i][j] = skip_conn_T[(jt * TILE_SIZE4_J + j) * CFG::seqlen + it * TILE_SIZE4 + i];
+                    out_block[i][j] = bias_stream.read();
+                    skip_buff[i][j] = skip_stream.read();
                 }
             }
 
@@ -185,10 +255,10 @@ void linear_fused(int8_t* A_T, int8_t* B, int32_t* bias, int16_t* out, int8_t* s
                 {
                     // read B values into vector
                     for (int j = 0; j < TILE_SIZE4_J; ++j){
-                        B_line[j] = B[(kt * TILE_SIZE4 + k) * CFG::dmodel + jt * TILE_SIZE4_J + j];
+                        B_line[j] = B_stream.read();
                     }
                     for (int i = 0; i < TILE_SIZE4; ++i) {
-                        A_T_line[i] = A_T[(kt * TILE_SIZE4 + k) * CFG::seqlen + it * TILE_SIZE4 + i];
+                        A_T_line[i] = A_stream.read();
                     }
 
                     for (int i = 0; i < TILE_SIZE4; ++i){
@@ -255,7 +325,7 @@ void layernorm_fused(int16_t *act, int8_t *out, int16_t *norm_weight, int16_t *n
 }
 */
 
-void layernorm_fused(int16_t *act, int8_t *out, int16_t *norm_weight, int16_t *norm_bias, float scaling_factor, float M_stage)
+void layernorm_fused4(int16_t *act, int8_t *out, int16_t *norm_weight, int16_t *norm_bias, float scaling_factor, float M_stage)
 {
     // calculate constant for std computation
     const int16_t C = int16_t(CFG::eps / scaling_factor);
@@ -288,6 +358,30 @@ void layernorm_fused(int16_t *act, int8_t *out, int16_t *norm_weight, int16_t *n
     }
 
 }
+
+void linear_dataflow4(int8_t *fc_in, int8_t *dense_weight_t, int32_t *dense_bias, int16_t *out_buff,  int8_t *skip_conn, float M_dense_acc, float M_residual) 
+{
+// Different function for the linear streaming dataflow to let it finish before layernorm starts.
+// Could optimize in the future to stream data into layernorm but that's not highest priority.
+   static hls::stream<int8_t> A_stream("A_stream");
+   static hls::stream<int8_t> B_stream("B_stream");
+   static hls::stream<int32_t> bias_stream("bias_stream");
+   static hls::stream<int8_t> skip_stream("skip_stream");
+
+#pragma HLS stream variable=A_stream depth=128
+#pragma HLS stream variable=B_stream depth=128
+#pragma HLS stream variable=bias_stream depth=128
+#pragma HLS stream variable=skip_stream depth=128
+
+#pragma HLS dataflow
+    read_A4(fc_in, A_stream);
+    read_B4(dense_weight_t, B_stream);
+    read_bias4(dense_bias, bias_stream);
+    read_skip4(skip_conn, skip_stream);
+    linear_fused4(A_stream, B_stream, bias_stream, out_buff, skip_stream, M_dense_acc, M_residual);
+   
+} 
+
 extern "C"
 {
 void stage4(int8_t *fc_in, int8_t *skip_conn, float M_residual, int8_t *dense_weight_t, int32_t *dense_bias, int8_t *dense_out, float M_dense_acc, int16_t *norm_weight, int16_t *norm_bias, float M_stage4)
@@ -295,8 +389,9 @@ void stage4(int8_t *fc_in, int8_t *skip_conn, float M_residual, int8_t *dense_we
     int16_t fc_ln_buff[CFG::seqlen][CFG::dmodel];
     int16_t* buff = &fc_ln_buff[0][0];
 
-    linear_fused(fc_in, dense_weight_t, dense_bias, buff, skip_conn, M_dense_acc, M_residual);
-    layernorm_fused(buff, dense_out, norm_weight, norm_bias, M_residual, M_stage4);
+    //linear_fused(fc_in, dense_weight_t, dense_bias, buff, skip_conn, M_dense_acc, M_residual);
+    linear_dataflow4(fc_in, dense_weight_t, dense_bias, buff, skip_conn, M_dense_acc, M_residual);
+    layernorm_fused4(buff, dense_out, norm_weight, norm_bias, M_residual, M_stage4);
 
 }
 }
