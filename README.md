@@ -70,7 +70,7 @@ TODO
   </tr>
   <tr>
     <td align="center">v3</td>
-    <td>121.26</td>
+    <td>35.025</td>
     <td>71.7614</td>
     <td>194.465</td>
   </tr>
