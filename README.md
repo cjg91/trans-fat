@@ -72,7 +72,7 @@ TODO
     <td align="center">v3</td>
     <td>35.025</td>
     <td>71.7614</td>
-    <td>194.465</td>
+    <td>110.986</td>
   </tr>
 </tbody>
 </table>
