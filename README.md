@@ -22,18 +22,18 @@ TODO
 
 ### v1
 - Linear layer tiling
-- buffering of input and output data
-- unrolling of multiplication inner loops
+- Buffering of input and output data
+- Unrolling of multiplication inner loops
 
 ### v2
 - Transpose A matmul input
 - Cache line of A.T
 - Increase tile size in j dimension 
+- Unrolling of computation in attention heads
 
 ### v3
-- Stream
-- stage1 read A outside linear_fused. Write to A streams. Have each dense matmul read from an A stream and compute its product in parallel.
-
+- Stream only in linear layers
+- stage1 read A outside linear_fused. Write to A streams. Have each dense matmul read from an A stream and compute its product in parallel
 
 ## Results
 
@@ -53,26 +53,26 @@ TODO
   <tr>
     <td align="center">v0</td>
     <td>4723.71</td>
-    <td>10950.9</td>
-    <td>15676.3</td>
+    <td>10950.90</td>
+    <td>15676.30</td>
   </tr>
   <tr>
     <td align="center">v1</td>
-    <td>274.983</td>
-    <td>120.912</td>
-    <td>397.446</td>
+    <td>274.98</td>
+    <td>120.91</td>
+    <td>397.45</td>
   </tr>
   <tr>
     <td align="center">v2</td>
-    <td>48.3591</td>
-    <td>95.6048</td>
-    <td>145.266</td>
+    <td>48.36</td>
+    <td>95.60</td>
+    <td>145.27</td>
   </tr>
   <tr>
     <td align="center">v3</td>
-    <td>35.025</td>
-    <td>71.7614</td>
-    <td>110.986</td>
+    <td>35.03</td>
+    <td>71.76</td>
+    <td>110.99</td>
   </tr>
 </tbody>
 </table>
