@@ -4,7 +4,30 @@ An FPGA Accelerator for Transformer Inference
 We accelerated a BERT layer across two FPGAs, partitioned into four pipeline stages. We conduct three levels of optimization using Vitis HLS and report runtimes. The accelerator implements a transformer layer of standard BERT size, with a sequence length of 128 (which can be modified).
 
 ## Instructions
-TODO
+This repository is designed to run on a host node with at least two Xilinx u200s. The instructions provided are specific to the the Pitt CRC fpga-n0 node, however, they may be adapted as neded for other nodes.
+
+### Dependancies
+The required dependancies can be loaded using the following commands.
+
+```
+module load xilinx/vitis/2020.2
+module load libfaketime
+source /opt/xilinx/xrt/setup.sh
+```
+
+### Building
+All building is performed in the `fpga/` directory. Navigate there and enter the following command.
+
+```
+faketime 'last year' make all TARGET=<hw, hw_emu, sw_emu> VERSION=<0, 1, 2, 3> PART=<fpga1, fpga2, all> JOBS=<# of jobs requested>
+```
+
+If building for hardware the output artifacts will automatically be coppied into `/builds/v#/fpga#/`.
+
+### Running
+To run all enter `make test VERSION=<0, 1, 2, 3> PART=all` in the `fpga/` directory.
+
+Individual fpga builds can be run directly using the host and executable in the desired `builds/` directory.
 
 ## Optimization Versions
 
